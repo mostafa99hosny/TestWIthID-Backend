@@ -1,0 +1,14 @@
+Deprecated==1.2.18
+mss==10.1.0
+nodriver==0.47.0
+websockets==15.0.1
+wrapt==1.17.3
+undetected-chromedriver
+playwright>=1.46.0
+python-dotenv>=1.0.1
+pymongo>=4.8.0
+playwright-stealth>=1.0.6
+pandas>=2.0.3
+openpyxl>=3.1.2
+motor
+typer
