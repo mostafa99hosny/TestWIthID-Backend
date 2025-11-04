@@ -5,6 +5,7 @@ import traceback
 import platform
 from login import startLogin, submitOtp
 from browser import closeBrowser, get_browser
+from validateReportExistence import validate_report
 
 if platform.system().lower() == "windows":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -168,6 +169,11 @@ async def command_handler():
                     continue
                 page = browser.main_tab
                 result = await submitOtp(page, cmd.get("otp", ""), cmd.get("recordId"))
+                result["commandId"] = cmd.get("commandId")
+                print(json.dumps(result), flush=True)
+
+            elif action == "validate_excel_data":
+                result = await validate_report(cmd)
                 result["commandId"] = cmd.get("commandId")
                 print(json.dumps(result), flush=True)
                 

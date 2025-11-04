@@ -204,6 +204,13 @@ class PythonWorker {
         });
     }
 
+    async validateExcelData(reportId) {
+    return this.sendCommand({
+        action: 'validate_excel_data',
+        reportId,
+    });
+}
+
     async processTaqeemBatch(batchId, reportIds, numTabs = 1, socketMode = true) {
         // Validate and sanitize numTabs
         let validatedNumTabs = parseInt(numTabs);
