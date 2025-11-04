@@ -2,8 +2,8 @@ const pythonWorker = require("../../scripts/core/pythonWorker/index");
 
 const login = async (req, res) => {
     try {
-        const { email, password, recordId } = req.body;
-        
+        const { email, password, method } = req.body;
+
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
@@ -12,9 +12,9 @@ const login = async (req, res) => {
         }
 
         console.log(`[AUTH] Login attempt for: ${email}`);
-        
-        const result = await pythonWorker.login(email, password, recordId);
-        
+
+        const result = await pythonWorker.login(email, password, method);
+
         if (result.status === 'OTP_REQUIRED') {
             return res.json({
                 success: true,
@@ -49,10 +49,10 @@ const login = async (req, res) => {
 
     } catch (error) {
         console.error('[AUTH] Login error:', error);
-        
+
         // Differentiate between timeout and other errors
         const statusCode = error.message?.includes('timeout') ? 504 : 500;
-        
+
         res.status(statusCode).json({
             success: false,
             error: error.message,
@@ -64,7 +64,7 @@ const login = async (req, res) => {
 const submitOtp = async (req, res) => {
     try {
         const { otp, recordId } = req.body;
-        
+
         if (!otp) {
             return res.status(400).json({
                 success: false,
@@ -73,7 +73,7 @@ const submitOtp = async (req, res) => {
         }
 
         console.log(`[AUTH] OTP submission attempt`);
-        
+
         const result = await pythonWorker.submitOtp(otp, recordId);
 
         if (result.status === 'SUCCESS') {
@@ -101,9 +101,9 @@ const submitOtp = async (req, res) => {
 
     } catch (error) {
         console.error('[AUTH] OTP error:', error);
-        
+
         const statusCode = error.message?.includes('timeout') ? 504 : 500;
-        
+
         res.status(statusCode).json({
             success: false,
             error: error.message,
@@ -115,7 +115,7 @@ const submitOtp = async (req, res) => {
 const logout = async (req, res) => {
     try {
         const result = await pythonWorker.closeBrowser();
-        
+
         res.json({
             success: true,
             message: 'Logged out successfully',
@@ -124,7 +124,7 @@ const logout = async (req, res) => {
 
     } catch (error) {
         console.error('[AUTH] Logout error:', error);
-        
+
         // Even if logout fails, consider it successful from client perspective
         // to avoid leaving them in a bad state
         res.json({
@@ -138,7 +138,7 @@ const logout = async (req, res) => {
 const getAuthStatus = async (req, res) => {
     try {
         const status = pythonWorker.getStatus();
-        
+
         res.json({
             success: true,
             data: {
@@ -160,7 +160,7 @@ const getAuthStatus = async (req, res) => {
 const healthCheck = async (req, res) => {
     try {
         const isReady = pythonWorker.isReady();
-        
+
         if (!isReady) {
             return res.status(503).json({
                 success: false,
@@ -170,7 +170,7 @@ const healthCheck = async (req, res) => {
 
         // Try a ping to verify worker is responsive
         const pingResult = await pythonWorker.ping();
-        
+
         res.json({
             success: true,
             message: 'Worker healthy',

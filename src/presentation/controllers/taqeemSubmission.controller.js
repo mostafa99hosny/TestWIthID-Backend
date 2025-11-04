@@ -100,7 +100,7 @@ const uploadWithoutBaseReportToDB = async (req, res) => {
 
 const createAssets = async (req, res) => {
     try {
-        const { reportId, macroCount, tabsNum, batchId, macroData } = req.body;
+        const { reportId, macroCount, tabsNum } = req.body;
 
         // Validate required fields
         if (!reportId) {
@@ -124,8 +124,6 @@ const createAssets = async (req, res) => {
             reportId,
             macroCount,
             tabsNum || 3,
-            batchId,
-            macroData || {}
         );
 
         // Check if creation was successful

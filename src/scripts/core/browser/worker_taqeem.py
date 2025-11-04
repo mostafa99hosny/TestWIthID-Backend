@@ -154,7 +154,7 @@ async def command_handler():
                     "?client_id=cli-qima-valuers&redirect_uri=https%3A%2F%2Fqima.taqeem.sa%2Fkeycloak%2Flogin%2Fcallback"
                     "&scope=openid&response_type=code"
                 )
-                result = await startLogin(page, cmd.get("email", ""), cmd.get("password", ""), cmd.get("recordId"))
+                result = await startLogin(page, cmd.get("email", ""), cmd.get("password", ""), cmd.get("method"))
                 result["commandId"] = cmd.get("commandId")
                 print(json.dumps(result), flush=True)
                 

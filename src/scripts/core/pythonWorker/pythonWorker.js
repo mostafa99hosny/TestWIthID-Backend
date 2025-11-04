@@ -187,12 +187,12 @@ class PythonWorker {
         return this.sendCommand({ action: 'ping' });
     }
 
-    async login(email, password, recordId = null) {
+    async login(email, password, method = null) {
         return this.sendCommand({
             action: 'login',
             email,
             password,
-            recordId
+            method
         });
     }
 
@@ -211,7 +211,7 @@ class PythonWorker {
         });
     }
 
-    async createAssets(reportId, macroCount, tabsNum = 3, batchId = null, macroData = {}) {
+    async createAssets(reportId, macroCount, tabsNum = 3) {
         // Validate and sanitize tabsNum
         let validatedTabsNum = parseInt(tabsNum);
         if (isNaN(validatedTabsNum) || validatedTabsNum < 1) {
@@ -233,8 +233,6 @@ class PythonWorker {
             reportId,
             macroCount: validatedMacroCount,
             tabsNum: validatedTabsNum,
-            batchId,
-            macroData
         });
     }
 
