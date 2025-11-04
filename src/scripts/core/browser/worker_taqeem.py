@@ -6,6 +6,7 @@ import platform
 from login import startLogin, submitOtp
 from browser import closeBrowser, get_browser
 from validateReportExistence import validate_report
+from createAssets import create_macros_multi_tab
 
 if platform.system().lower() == "windows":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -176,6 +177,98 @@ async def command_handler():
                 result = await validate_report(cmd)
                 result["commandId"] = cmd.get("commandId")
                 print(json.dumps(result), flush=True)
+
+            elif action == "create_assets":
+                # Get browser instance
+                browser = await get_browser()
+                if not browser:
+                    result = {
+                        "status": "FAILED", 
+                        "error": "No active browser session. Please login first.",
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+                    continue
+                
+                # Extract parameters
+                report_id = cmd.get("reportId")
+                macro_count = cmd.get("macroCount")
+                tabs_num = cmd.get("tabsNum", 3)  # Default to 3 tabs
+                batch_id = cmd.get("batchId")
+                
+                # Validate required parameters
+                if not report_id:
+                    result = {
+                        "status": "FAILED",
+                        "error": "Missing required parameter: reportId",
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+                    continue
+                
+                if not macro_count or macro_count <= 0:
+                    result = {
+                        "status": "FAILED",
+                        "error": "Missing or invalid required parameter: macroCount",
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+                    continue
+                
+                # Create control state for this task
+                task_id = f"create_assets_{report_id}_{batch_id}"
+                control_state = create_control_state(task_id, batch_id)
+                
+                try:
+                    # TODO: Get field_map and field_types from your form configuration
+                    # For now, using placeholder - you'll need to import your actual config
+                    from formSteps import form_steps
+                    field_map = form_steps[1]["field_map"]
+                    field_types = form_steps[1]["field_types"]
+                    
+                    # TODO: Get macro data template
+                    # This should come from cmd or be constructed based on your needs
+                    macro_data_template = cmd.get("macroData", {})
+                    
+                    # Create the macros
+                    result = await create_macros_multi_tab(
+                        browser=browser,
+                        report_id=report_id,
+                        macro_count=macro_count,
+                        macro_data_template=macro_data_template,
+                        field_map=field_map,
+                        field_types=field_types,
+                        max_tabs=tabs_num,
+                        batch_size=10,
+                        control_state=control_state
+                    )
+                    
+                    result["commandId"] = cmd.get("commandId")
+                    print(json.dumps(result), flush=True)
+                    
+                except TaskStoppedException as e:
+                    result = {
+                        "status": "STOPPED",
+                        "message": str(e),
+                        "reportId": report_id,
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+                    
+                except Exception as e:
+                    tb = traceback.format_exc()
+                    result = {
+                        "status": "FAILED",
+                        "error": str(e),
+                        "traceback": tb,
+                        "reportId": report_id,
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+                    
+                finally:
+                    # Cleanup control state
+                    cleanup_control_state(task_id)
                 
             elif action == "close":
                 await closeBrowser()
@@ -202,7 +295,7 @@ async def command_handler():
                 result = {
                     "status": "FAILED", 
                     "error": f"Unknown action: {action}",
-                    "supported_actions": ["login", "otp", "close", "ping", "pause", "resume", "stop"],
+                    "supported_actions": ["login", "otp", "validate_excel_data", "create_assets", "close", "ping", "pause", "resume", "stop"],
                     "commandId": cmd.get("commandId")
                 }
                 print(json.dumps(result), flush=True)

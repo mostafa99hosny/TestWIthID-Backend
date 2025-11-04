@@ -1,4 +1,4 @@
-import asyncio
+import asyncio, json, time
 
 async def wait_for_table_rows(page, timeout=100):
     """Wait for table to have valid data rows"""
@@ -23,3 +23,16 @@ async def wait_for_table_rows(page, timeout=100):
             continue
     
     return False
+
+def emit_progress(status, message, batch_id, asset_index=None, tab_id=None, **kwargs):
+    progress_data = {
+        "type": "PROGRESS",
+        "status": status,
+        "message": message,
+        "batchId": batch_id,
+        "assetIndex": asset_index,
+        "tabId": tab_id,
+        "timestamp": time.time(),
+        **kwargs
+    }
+    print(json.dumps(progress_data), flush=True)

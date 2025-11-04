@@ -86,11 +86,11 @@ class PythonWorker {
                 if (io && response.batchId) {
                     // Emit regular progress updates
                     io.to(`batch_${response.batchId}`).emit('processing_progress', response);
-                    
+
                     // Only emit processing_complete ONCE per batch
                     if (response.status === 'COMPLETED' && !this.completedBatches.has(response.batchId)) {
                         this.completedBatches.add(response.batchId);
-                        
+
                         io.to(`batch_${response.batchId}`).emit('processing_complete', {
                             batchId: response.batchId,
                             status: 'COMPLETED',
@@ -100,7 +100,7 @@ class PythonWorker {
                             percentage: 100,
                             timestamp: new Date().toISOString()
                         });
-                        
+
                         const socketService = require('./socketService');
                         socketService.activeSessions.delete(response.batchId);
                         console.log(`[PROCESSING COMPLETE] Batch ${response.batchId} completed using ${response.numTabs || 1} tabs`);
@@ -115,11 +115,11 @@ class PythonWorker {
                 if (handler) {
                     handler.resolve(response);
                     this.pendingCommands.delete(response.commandId);
-                    
+
                     if (response.batchId && (response.status === 'SUCCESS' || response.status === 'STOPPED' || response.status === 'FAILED')) {
                         const io = require('./socketService').getIO();
                         const socketService = require('./socketService');
-                        
+
                         if (response.status === 'STOPPED') {
                             io.to(`batch_${response.batchId}`).emit('processing_stopped', {
                                 batchId: response.batchId,
@@ -174,7 +174,7 @@ class PythonWorker {
 
             try {
                 this.worker.stdin.write(JSON.stringify(commandWithId) + '\n');
-                console.log(`[PY] Sent command: ${command.action} (id: ${commandId})`, 
+                console.log(`[PY] Sent command: ${command.action} (id: ${commandId})`,
                     command.numTabs ? `with ${command.numTabs} tabs` : '');
             } catch (error) {
                 this.pendingCommands.delete(commandId);
@@ -205,11 +205,38 @@ class PythonWorker {
     }
 
     async validateExcelData(reportId) {
-    return this.sendCommand({
-        action: 'validate_excel_data',
-        reportId,
-    });
-}
+        return this.sendCommand({
+            action: 'validate_excel_data',
+            reportId,
+        });
+    }
+
+    async createAssets(reportId, macroCount, tabsNum = 3, batchId = null, macroData = {}) {
+        // Validate and sanitize tabsNum
+        let validatedTabsNum = parseInt(tabsNum);
+        if (isNaN(validatedTabsNum) || validatedTabsNum < 1) {
+            validatedTabsNum = 1;
+        } else if (validatedTabsNum > 10) {
+            validatedTabsNum = 10; // Max safety limit
+        }
+
+        // Validate macroCount
+        let validatedMacroCount = parseInt(macroCount);
+        if (isNaN(validatedMacroCount) || validatedMacroCount < 1) {
+            throw new Error('Invalid macro count');
+        }
+
+        console.log(`[PY] Creating ${validatedMacroCount} assets for report ${reportId} using ${validatedTabsNum} tabs`);
+
+        return this.sendCommand({
+            action: 'create_assets',
+            reportId,
+            macroCount: validatedMacroCount,
+            tabsNum: validatedTabsNum,
+            batchId,
+            macroData
+        });
+    }
 
     async processTaqeemBatch(batchId, reportIds, numTabs = 1, socketMode = true) {
         // Validate and sanitize numTabs
