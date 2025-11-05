@@ -277,6 +277,7 @@ async def command_handler():
                 result = await delete_report_flow(
                     report_id=cmd.get("reportId"),
                 )
+                result["commandId"] = cmd.get("commandId")
                 print(json.dumps(result), flush=True)
 
             elif action == "grab_ids":
@@ -286,7 +287,7 @@ async def command_handler():
                     report_id=cmd.get("reportId"),
                     tabs_num=cmd.get("tabsNum", 3)
                 )
-
+                result["commandId"] = cmd.get("commandId")
                 print(json.dumps(result), flush=True)
                 
             elif action == "close":

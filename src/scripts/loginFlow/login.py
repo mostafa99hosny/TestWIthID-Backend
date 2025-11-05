@@ -141,3 +141,4 @@ async def submitOtp(page, otp, record_id=None):
         msg = {"status": "FAILED", "recordId": record_id, "error": str(e), "traceback": tb}
         print(json.dumps(msg), flush=True)
         return msg
+    

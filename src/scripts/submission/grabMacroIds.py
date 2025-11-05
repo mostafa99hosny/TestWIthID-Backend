@@ -290,8 +290,7 @@ async def get_all_macro_ids_parallel(browser, report_id, tabs_num=3):
             else:
                 print(f"[MACRO_ID] Failed to save data to MongoDB", file=sys.stderr)
         
-        # Return just the macro IDs for backward compatibility
-        return [macro_id for macro_id, page_num in all_macro_ids_with_pages]
+        return {"status": "SUCCESS", "macro_ids_with_pages": all_macro_ids_with_pages}
 
     except Exception as e:
         print(f"[MACRO_ID] Error in get_all_macro_ids_parallel: {str(e)}", file=sys.stderr)

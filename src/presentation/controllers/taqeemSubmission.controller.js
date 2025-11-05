@@ -178,6 +178,8 @@ const grabMacroIds = async (req, res) => {
             tabsNum || 3,
         );
 
+        console.log('[GRAB MACRO IDS] Result:', result);
+
         // Check if grabbing was successful
         if (result.status === 'SUCCESS') {
             res.json({
