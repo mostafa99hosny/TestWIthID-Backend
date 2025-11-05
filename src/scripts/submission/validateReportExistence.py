@@ -1,6 +1,6 @@
 import asyncio, sys, traceback, json
-from browser import get_browser, wait_for_element
-from utils import wait_for_table_rows
+from scripts.core.browser.browser import get_browser
+from scripts.core.browser.utils import wait_for_table_rows
 
 async def validate_report(cmd):
     report_id = cmd.get("reportId")

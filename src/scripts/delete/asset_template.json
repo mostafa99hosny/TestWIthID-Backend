@@ -1,0 +1,28 @@
+{
+    "asset_type": "0",
+    "asset_name": "FORD TERRITORY TRY-TT2 2025",
+    "asset_usage_id": "38",
+    "inspected_at": "2025-01-07",
+    "value": "108695",
+    "production_capacity": "0",
+    "production_capacity_measuring_unit": "0",
+    "owner_name": "شركة إنماء مركبات الجزيرة للإستثمار",
+    "product_type": "0",
+    "approach1_is_primary": "",
+    "approach3_is_primary": "1",
+    "approach3_value": "108695",
+    "country_label": "Saudi Arabia",
+    "country_label_alts": [
+        "المملكة العربية السعودية",
+        "السعودية"
+    ],
+    "region_label": "Riyadh Province",
+    "region_label_alts": [
+        "منطقة الرياض",
+        "الرياض"
+    ],
+    "city_label": "Riyadh",
+    "city_label_alts": [
+        "الرياض"
+    ]
+}

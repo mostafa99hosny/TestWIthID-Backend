@@ -1,4 +1,3 @@
-import asyncio
 from nodriver import Browser
 
 _browser = None

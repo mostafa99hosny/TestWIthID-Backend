@@ -1,4 +1,4 @@
-from browser import wait_for_element
+from scripts.core.browser.browser import wait_for_element
 
 async def post_login_navigation(page):
     try:

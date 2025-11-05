@@ -1,7 +1,4 @@
-import asyncio
-import time
-import json
-import sys
+import asyncio, time, json, sys
 
 async def wait_for_element(page, selector, timeout=30, check_interval=0.5):
     """Wait for an element to appear on the page"""
@@ -84,7 +81,7 @@ async def bulk_inject_inputs(page, macro_data, field_map, field_types):
 
 async def save_macros(page, macro_data, field_map, field_types, control_state=None):
     """Fill and save macro form"""
-    from worker_taqeem import check_control
+    from scripts.core.browser.worker_taqeem import check_control
     
     try:
         if control_state:
@@ -127,7 +124,7 @@ def calculate_tab_batches(total_macros, max_tabs, batch_size=10):
 async def create_macros_multi_tab(browser, report_id, macro_count, macro_data_template, 
                                   field_map, field_types, max_tabs=3, batch_size=10, 
                                   control_state=None):
-    from worker_taqeem import check_control
+    from scripts.core.browser.worker_taqeem import check_control
     from datetime import datetime
     
     try:

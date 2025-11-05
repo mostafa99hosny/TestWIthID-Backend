@@ -3,10 +3,11 @@ import sys
 import json
 import traceback
 import platform
-from login import startLogin, submitOtp
-from browser import closeBrowser, get_browser
-from validateReportExistence import validate_report
-from createAssets import create_macros_multi_tab
+from scripts.loginFlow.login import startLogin, submitOtp
+from .browser import closeBrowser, get_browser
+from scripts.submission.validateReportExistence import validate_report
+from scripts.submission.createAssets import create_macros_multi_tab
+from scripts.delete.reportDelete import delete_report_flow
 
 if platform.system().lower() == "windows":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -222,7 +223,7 @@ async def command_handler():
                 try:
                     # TODO: Get field_map and field_types from your form configuration
                     # For now, using placeholder - you'll need to import your actual config
-                    from formSteps import form_steps
+                    from scripts.submission.formSteps import form_steps
                     field_map = form_steps[1]["field_map"]
                     field_types = form_steps[1]["field_types"]
                     
@@ -269,6 +270,14 @@ async def command_handler():
                 finally:
                     # Cleanup control state
                     cleanup_control_state(task_id)
+
+            elif action == "delete_report":
+                browser = await get_browser()
+                result = await delete_report_flow(
+                    report_id=cmd.get("reportId"),
+                )
+                result["commandId"] = cmd.get("commandId")
+                print(json.dumps(result), flush=True)
                 
             elif action == "close":
                 await closeBrowser()

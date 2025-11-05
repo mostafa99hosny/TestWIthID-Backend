@@ -22,14 +22,22 @@ class PythonWorker {
             ? path.join(__dirname, '../../.venv/Scripts/python.exe')
             : path.join(__dirname, '../../../../.venv/bin/python');
 
-        const scriptPath = path.join(__dirname, '../browser/worker_taqeem.py');
-        const scriptDir = path.dirname(scriptPath);
+        // repoRoot .../TestWithID_Backend
+        const repoRoot = path.resolve(__dirname, '../../../..');
+        // srcDir .../TestWithID_Backend/src  (this must contain the "scripts" package)
+        const srcDir = path.join(repoRoot, 'src');
 
-        console.log(`[PY] Starting worker: ${pythonExecutable} ${scriptPath}`);
+        // Run worker as a module: scripts.core.browser.worker_taqeem
+        const modulePath = 'scripts.core.browser.worker_taqeem';
 
-        this.worker = spawn(pythonExecutable, [scriptPath], {
-            cwd: scriptDir,
-            stdio: ['pipe', 'pipe', 'pipe']
+        console.log(`[PY] Starting worker (module): ${pythonExecutable} -m ${modulePath}`);
+        this.worker = spawn(pythonExecutable, ['-m', modulePath], {
+            cwd: srcDir,                      // IMPORTANT: be in src/
+            stdio: ['pipe', 'pipe', 'pipe'],
+            env: {                            // make src importable
+                ...process.env,
+                PYTHONPATH: srcDir
+            }
         });
 
         this.stdoutBuffer = '';
@@ -39,7 +47,6 @@ class PythonWorker {
             this.stdoutBuffer += data.toString();
             const lines = this.stdoutBuffer.split(/\r?\n/);
             this.stdoutBuffer = lines.pop() || '';
-
             for (const line of lines) {
                 if (!line.trim()) continue;
                 this.handleWorkerOutput(line);
@@ -59,7 +66,7 @@ class PythonWorker {
             console.log(`[PY] Worker exited (code=${code}, signal=${signal})`);
             this.isWorkerReady = false;
             this.worker = null;
-            this.completedBatches.clear(); // Clear completed batches on worker close
+            this.completedBatches.clear();
 
             this.pendingCommands.forEach((handler) => {
                 handler.reject(new Error(`Worker exited with code ${code}`));
@@ -155,33 +162,41 @@ class PythonWorker {
 
     async sendCommand(command) {
         if (!this.worker || !this.isWorkerReady) {
-            this.startWorker();
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Start and wait for actual spawn before writing
+            await new Promise((resolve, reject) => {
+                const w = this.startWorker();
+                const onSpawn = () => {
+                    w.off('error', onError);
+                    resolve();
+                };
+                const onError = (err) => {
+                    w.off('spawn', onSpawn);
+                    reject(err);
+                };
+                w.once('spawn', onSpawn);
+                w.once('error', onError);
+            });
         }
 
         const commandId = this.commandId++;
         const commandWithId = { ...command, commandId };
 
         return new Promise((resolve, reject) => {
-            this.pendingCommands.set(commandId, {
-                resolve: (result) => {
-                    resolve(result);
-                },
-                reject: (error) => {
-                    reject(error);
-                }
-            });
+            this.pendingCommands.set(commandId, { resolve, reject });
 
             try {
                 this.worker.stdin.write(JSON.stringify(commandWithId) + '\n');
-                console.log(`[PY] Sent command: ${command.action} (id: ${commandId})`,
-                    command.numTabs ? `with ${command.numTabs} tabs` : '');
+                console.log(
+                    `[PY] Sent command: ${command.action} (id: ${commandId})`,
+                    command.numTabs ? `with ${command.numTabs} tabs` : ''
+                );
             } catch (error) {
                 this.pendingCommands.delete(commandId);
                 reject(new Error(`Failed to send command to worker: ${error.message}`));
             }
         });
     }
+
 
     async ping() {
         return this.sendCommand({ action: 'ping' });
@@ -208,6 +223,14 @@ class PythonWorker {
         return this.sendCommand({
             action: 'validate_excel_data',
             reportId,
+        });
+    }
+
+    async deleteReport(reportId) {
+        return this.sendCommand({
+            action: 'delete_report',
+            reportId,
+            templatePath: './data/asset_template.json'
         });
     }
 
