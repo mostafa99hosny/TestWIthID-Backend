@@ -158,10 +158,56 @@ const createAssets = async (req, res) => {
     }
 };
 
+const grabMacroIds = async (req, res) => {
+    try {
+        const { reportId, tabsNum } = req.body;
+
+        // Validate required fields
+        if (!reportId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Report ID is required'
+            });
+        }
+
+        console.log(`[GRAB MACRO IDS] Starting to grab macro IDs for report: ${reportId}, tabs: ${tabsNum || 3}`);
+
+        // Call Python worker to grab macro IDs
+        const result = await pythonWorker.grabMacroIds(
+            reportId,
+            tabsNum || 3,
+        );
+
+        // Check if grabbing was successful
+        if (result.status === 'SUCCESS') {
+            res.json({
+                success: true,
+                data: result
+            });
+        } else {
+            res.status(400).json({
+                success: false,
+                error: result.error || 'Failed to grab macro IDs',
+                data: result
+            });
+        }
+
+    } catch (error) {
+        console.error('[GRAB MACRO IDS] Error:', error);
+        const statusCode = error.message?.includes('timeout') ? 504 : 500;
+        res.status(statusCode).json({
+            success: false,
+            error: error.message,
+            isTimeout: error.message?.includes('timeout')
+        });
+    }
+}
+
 
 
 module.exports = {
     validateExcelData,
     uploadWithoutBaseReportToDB,
-    createAssets
+    createAssets,
+    grabMacroIds
 };

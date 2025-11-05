@@ -259,6 +259,13 @@ class PythonWorker {
         });
     }
 
+    async grabMacroIds(reportId) {
+        return this.sendCommand({
+            action: 'grab_ids',
+            reportId,
+        });
+    }
+
     async processTaqeemBatch(batchId, reportIds, numTabs = 1, socketMode = true) {
         // Validate and sanitize numTabs
         let validatedNumTabs = parseInt(numTabs);

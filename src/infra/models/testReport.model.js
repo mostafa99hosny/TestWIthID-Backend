@@ -18,7 +18,7 @@ const testReportSchema = new mongoose.Schema({
   special_assumptions: { type: String },
   value: { type: String },
   valuation_currency: { type: String },
-  
+
 
   report_asset_file: { type: String },
   client_name: { type: String },
@@ -32,7 +32,7 @@ const testReportSchema = new mongoose.Schema({
   startSubmitTime: { type: Date },
   endSubmitTime: { type: Date },
 
-  checked: {type: Boolean, default: false},
+  checked: { type: Boolean, default: false },
 
   asset_data: [{
     id: { type: String },
@@ -40,6 +40,7 @@ const testReportSchema = new mongoose.Schema({
     asset_type: { type: String, default: "0" },
     asset_name: { type: String },
     inspection_date: { type: String },
+    pg_no: { type: String },
 
     model: { type: String },
     owner_name: { type: String },

@@ -8,6 +8,7 @@ from .browser import closeBrowser, get_browser
 from scripts.submission.validateReportExistence import validate_report
 from scripts.submission.createAssets import create_macros_multi_tab
 from scripts.delete.reportDelete import delete_report_flow
+from scripts.submission.grabMacroIds import get_all_macro_ids_parallel
 
 if platform.system().lower() == "windows":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -276,7 +277,16 @@ async def command_handler():
                 result = await delete_report_flow(
                     report_id=cmd.get("reportId"),
                 )
-                result["commandId"] = cmd.get("commandId")
+                print(json.dumps(result), flush=True)
+
+            elif action == "grab_ids":
+                browser = await get_browser()
+                result = await get_all_macro_ids_parallel(
+                    browser=browser,
+                    report_id=cmd.get("reportId"),
+                    tabs_num=cmd.get("tabsNum", 3)
+                )
+
                 print(json.dumps(result), flush=True)
                 
             elif action == "close":
