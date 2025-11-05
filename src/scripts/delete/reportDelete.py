@@ -725,7 +725,6 @@ async def delete_report_flow(report_id: str, template_path: str = "./asset_templ
     Main entry point - does exactly what their main.py does but returns a result dict.
     """
     try:
-
         def _load_template():
             try:
                 with open(template_path, "r", encoding="utf-8") as f:
@@ -733,42 +732,55 @@ async def delete_report_flow(report_id: str, template_path: str = "./asset_templ
             except Exception as e:
                 log(f"Could not load template {template_path}: {e}", "ERR")
                 return {}
-            
-        # Step 1: Open report
+
         url = f"https://qima.taqeem.sa/report/{report_id}?office={OFFICE_ID}"
-        page = await new_window(url)
-        await asyncio.sleep(1.0)
-        
-        # Step 2: Try delete button
-        if await try_delete_report(page):
-            return {"status": "SUCCESS", "message": "Report deleted", "reportId": report_id}
-        
-        # Step 3: Prune incomplete assets
-        summary = await delete_incomplete_assets_across_pages(page)
-        total_deleted = summary.get("total_deleted", 0)
-        kept_ids = [kid for sub in summary.get("kept_by_main_page", []) for kid in sub if kid]
-        
-        # Step 4: If all incomplete, complete one
-        if total_deleted == 0 and kept_ids:
-            template = _load_template(template_path)
-            await edit_macro_and_save(kept_ids[0], template)
-            page = await new_window(url)  # Re-open
+        max_attempts = 5
+        attempt = 0
+        last_kept_id = None
+        total_deleted = 0
+        while attempt < max_attempts:
+            page = await new_window(url)
             await asyncio.sleep(1.0)
+            # Try delete button
             if await try_delete_report(page):
-                return {"status": "SUCCESS", "message": "Report deleted after completion", "reportId": report_id}
-        
-        # Step 5: Final check
+                return {"status": "SUCCESS", "message": "Report deleted", "reportId": report_id}
+
+            # Prune incomplete assets
+            summary = await delete_incomplete_assets_across_pages(page)
+            total_deleted += summary.get("total_deleted", 0)
+            kept_ids = [kid for sub in summary.get("kept_by_main_page", []) for kid in sub if kid]
+
+            # If only one incomplete asset remains and still no delete button, edit it
+            if kept_ids and len(kept_ids) == 1:
+                last_kept_id = kept_ids[0]
+                template = _load_template()
+                await edit_macro_and_save(last_kept_id, template)
+                # After editing, try again
+                page = await new_window(url)
+                await asyncio.sleep(1.0)
+                if await try_delete_report(page):
+                    return {"status": "SUCCESS", "message": "Report deleted after completion", "reportId": report_id}
+                # If still not, break to avoid infinite loop
+                break
+
+            # If no assets left to process, break
+            if not kept_ids:
+                break
+
+            attempt += 1
+
+        # Final check
         page = await new_window(url)
         await asyncio.sleep(1.0)
         if await try_delete_report(page):
             return {"status": "SUCCESS", "message": "Report deleted after cleanup", "reportId": report_id, "deletedAssets": total_deleted}
-        
+
         return {
-            "status": "PARTIAL", 
+            "status": "PARTIAL",
             "message": "Cleanup done but delete button not available",
             "reportId": report_id,
-            "deletedAssets": total_deleted
+            "deletedAssets": total_deleted,
+            "lastKeptId": last_kept_id
         }
-        
     except Exception as e:
         return {"status": "FAILED", "error": str(e), "reportId": report_id}

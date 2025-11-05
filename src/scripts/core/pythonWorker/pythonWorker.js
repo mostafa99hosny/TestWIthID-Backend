@@ -19,7 +19,7 @@ class PythonWorker {
 
         const isWindows = process.platform === 'win32';
         const pythonExecutable = isWindows
-            ? path.join(__dirname, '../../.venv/Scripts/python.exe')
+            ? path.join(__dirname, '../../../../.venv/Scripts/python.exe')
             : path.join(__dirname, '../../../../.venv/bin/python');
 
         // repoRoot .../TestWithID_Backend
