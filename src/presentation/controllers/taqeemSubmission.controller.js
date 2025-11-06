@@ -1,5 +1,6 @@
 const pythonWorker = require('../../scripts/core/pythonWorker/index');
 const { noBaseDataExtraction } = require('../../app/equipment/noBaseExtraction');
+const { addCommonFields } = require('../../app/equipment/addCommonFields');
 
 const validateExcelData = async (req, res) => {
     try {
@@ -42,7 +43,7 @@ const uploadWithoutBaseReportToDB = async (req, res) => {
         }
 
         // Extract all required fields from request body
-        const { reportId, region, city, inspectionDate } = req.body;
+        const { reportId } = req.body;
 
         // Validate required fields
         if (!reportId) {
@@ -52,41 +53,10 @@ const uploadWithoutBaseReportToDB = async (req, res) => {
             });
         }
 
-        if (!region) {
-            return res.status(400).json({
-                status: "FAILED",
-                error: "Region is required"
-            });
-        }
-
-        if (!city) {
-            return res.status(400).json({
-                status: "FAILED",
-                error: "City is required"
-            });
-        }
-
-        if (!inspectionDate) {
-            return res.status(400).json({
-                status: "FAILED",
-                error: "Inspection date is required"
-            });
-        }
-
         const excelFilePath = req.file.path; // Get the path from uploaded file
 
-        // Get userId from authenticated user (adjust based on your auth setup)
-        const userId = req.user?.id || req.userId || null;
-
         // Pass all parameters to extraction function
-        const result = await noBaseDataExtraction(
-            excelFilePath,
-            reportId,
-            userId,
-            region,
-            city,
-            inspectionDate
-        );
+        const result = await noBaseDataExtraction(excelFilePath, reportId);
 
         return res.json({ data: result });
     } catch (err) {
@@ -205,11 +175,26 @@ const grabMacroIds = async (req, res) => {
     }
 }
 
+const addCommonFieldsToAssets = async (req, res) => {
+    try {
+        const { reportId, region, city, inspectionDate } = req.body;
+        const result = await addCommonFields(reportId, region, city, inspectionDate);
+
+        res.json(result);
+    } catch (error) {
+        console.error('[ADD COMMON FIELDS] Error:', error);
+        res.status(500).json({
+            status: "FAILED",
+            error: error.message
+        });
+    }
+}
 
 
 module.exports = {
     validateExcelData,
     uploadWithoutBaseReportToDB,
     createAssets,
-    grabMacroIds
+    grabMacroIds,
+    addCommonFieldsToAssets
 };

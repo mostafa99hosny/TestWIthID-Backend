@@ -59,7 +59,7 @@ def create_test_report_object(report_id, macro_ids_with_pages):
         'updatedAt': datetime.now()
     }
 
-async def save_to_mongodb(report_id, macro_ids_with_pages, db_name='test_db', collection_name='testreports'):
+async def save_to_mongodb(report_id, macro_ids_with_pages, db_name='projectForever', collection_name='testreports'):
     """
     Save the report data to MongoDB
     

@@ -1,18 +1,18 @@
 const fs = require('fs');
 const ExcelJS = require('exceljs/dist/es5');
 
-const TestReport = require('../../infra/models/testReport.model'); // Update path as needed
+const TestReport = require('../../infra/models/testReport.model');
 
 const formatDateTime = (value) => {
     if (!value) return '';
-    
+
     if (value instanceof Date) {
         const yyyy = value.getFullYear();
         const mm = String(value.getMonth() + 1).padStart(2, '0');
         const dd = String(value.getDate()).padStart(2, '0');
         return `${yyyy}-${mm}-${dd}`;
     }
-    
+
     if (typeof value === 'number') {
         // Excel date number (days since 1900-01-01)
         const date = new Date((value - 25569) * 86400 * 1000);
@@ -21,19 +21,19 @@ const formatDateTime = (value) => {
         const dd = String(date.getDate()).padStart(2, '0');
         return `${yyyy}-${mm}-${dd}`;
     }
-    
+
     if (typeof value === 'string') {
         const dateFormats = [
-            /(\d{1,2})\/(\d{1,2})\/(\d{4})/, 
-            /(\d{4})-(\d{1,2})-(\d{1,2})/,   
-            /(\d{1,2})-(\d{1,2})-(\d{4})/   
+            /(\d{1,2})\/(\d{1,2})\/(\d{4})/,
+            /(\d{4})-(\d{1,2})-(\d{1,2})/,
+            /(\d{1,2})-(\d{1,2})-(\d{4})/
         ];
-        
+
         for (const format of dateFormats) {
             const match = value.match(format);
             if (match) {
                 let year, month, day;
-                
+
                 if (format === dateFormats[0]) {
                     day = match[1].padStart(2, '0');
                     month = match[2].padStart(2, '0');
@@ -47,12 +47,12 @@ const formatDateTime = (value) => {
                     month = match[2].padStart(2, '0');
                     year = match[3];
                 }
-                
+
                 return `${year}-${month}-${day}`;
             }
         }
     }
-    
+
     return String(value);
 };
 
@@ -73,7 +73,7 @@ const getCellValue = (cell, isNumericField = false) => {
     }
 
     // Use formatDateTime for date values (only for non-numeric fields)
-    if (value instanceof Date || typeof value === 'number' || 
+    if (value instanceof Date || typeof value === 'number' ||
         (typeof value === 'string' && value.match(/\d{1,4}[\/\-]\d{1,2}[\/\-]\d{1,4}/))) {
         return formatDateTime(value);
     }
@@ -85,15 +85,18 @@ const getCellValue = (cell, isNumericField = false) => {
     return String(value);
 };
 
-const noBaseDataExtraction = async (excelFilePath, reportId, userId, region, city, inspectionDate) => {
+const noBaseDataExtraction = async (excelFilePath, reportId) => {
     try {
-        // Validate required parameters
-        if (!region || !city || !inspectionDate) {
-            throw new Error("Region, city, and inspection date are required");
+        // Step 1: Find existing record with report_id
+        const existingReport = await TestReport.findOne({ report_id: reportId });
+
+        if (!existingReport) {
+            throw new Error(`Report with ID ${reportId} not found in database`);
         }
 
-        console.log("region:", region, "city:", city, "inspectionDate:", inspectionDate);
+        console.log(`Found existing report with ${existingReport.asset_data?.length || 0} assets`);
 
+        // Step 2: Parse Excel file
         const workbook = new ExcelJS.Workbook();
         await workbook.xlsx.readFile(excelFilePath);
         const sheets = workbook.worksheets;
@@ -117,7 +120,7 @@ const noBaseDataExtraction = async (excelFilePath, reportId, userId, region, cit
                         'final_value', 'market_approach_value', 'cost_approach_value',
                         'value', 'amount', 'price', 'quantity'
                     ].includes(header);
-                    
+
                     asset[header] = getCellValue({ value }, isNumericField);
                 });
 
@@ -129,10 +132,8 @@ const noBaseDataExtraction = async (excelFilePath, reportId, userId, region, cit
                     asset.cost_approach = "1";
                 }
 
-                // Add region, city, and inspection_date to each asset
-                asset.region = region;
-                asset.city = city;
-                asset.inspection_date = inspectionDate;
+                // Add empty baseData field
+                asset.baseData = "";
 
                 rows.push(asset);
             }
@@ -145,25 +146,56 @@ const noBaseDataExtraction = async (excelFilePath, reportId, userId, region, cit
         const costAssetsSheet = sheets[1];
         const costAssets = parseAssetSheet(costAssetsSheet, false);
 
-        const allAssets = [...marketAssets, ...costAssets];
+        const excelAssets = [...marketAssets, ...costAssets];
 
-        const testReportDoc = new TestReport({
-            report_id: reportId,
-            user_id: userId,
-            report_asset_file: null,
-            asset_data: allAssets
+        // Step 3: Check if asset counts match
+        const existingAssetCount = existingReport.asset_data?.length || 0;
+        const excelAssetCount = excelAssets.length;
+
+        console.log(`Asset count check - Existing: ${existingAssetCount}, Excel: ${excelAssetCount}`);
+
+        if (existingAssetCount !== excelAssetCount) {
+            throw new Error(`Asset count mismatch. Database has ${existingAssetCount} assets, Excel has ${excelAssetCount} assets`);
+        }
+
+        // Step 4: Update the existing record with new asset data
+        // Preserve the original IDs and page numbers from existing assets
+        const updatedAssetData = excelAssets.map((excelAsset, index) => {
+            const existingAsset = existingReport.asset_data[index];
+
+            return {
+                ...existingAsset, // Preserve existing fields like _id, page_number, etc.
+                ...excelAsset,    // Override with new data from Excel
+            };
         });
 
-        const saved = await testReportDoc.save();
+        // Update the existing document - only update asset_data and timestamp
+        existingReport.asset_data = updatedAssetData;
+        existingReport.updated_at = new Date();
 
-        try { 
-            if (fs.existsSync(excelFilePath)) fs.unlinkSync(excelFilePath); 
-        } catch { }
+        const saved = await existingReport.save();
+
+        console.log(`Successfully updated report ${reportId} with ${updatedAssetData.length} assets`);
+
+        // Clean up temporary file
+        try {
+            if (fs.existsSync(excelFilePath)) fs.unlinkSync(excelFilePath);
+        } catch (error) {
+            console.warn("Could not delete temporary file:", error.message);
+        }
 
         return { status: "SUCCESS", data: saved };
 
     } catch (err) {
         console.error("[noBaseDataExtractionForTest] error:", err);
+
+        // Clean up temporary file even in case of error
+        try {
+            if (fs.existsSync(excelFilePath)) fs.unlinkSync(excelFilePath);
+        } catch (error) {
+            console.warn("Could not delete temporary file after error:", error.message);
+        }
+
         return { status: "FAILED", error: err.message };
     }
 };
