@@ -190,11 +190,85 @@ const addCommonFieldsToAssets = async (req, res) => {
     }
 }
 
+const editMacros = async (req, res) => {
+    try {
+        const { reportId, tabsNum } = req.body;
+        const result = await pythonWorker.editMacros(reportId, tabsNum);
+
+        return result;
+    } catch (error) {
+        console.error('[EDIT MACROS] Error:', error);
+        throw error;
+    }
+};
+
+const checkMacroStatus = async (req, res) => {
+    try {
+        const { reportId, tabsNum } = req.body;
+
+        if (!reportId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Report ID is required'
+            });
+        }
+
+        console.log(`[CHECK MACRO STATUS] Starting check for report: ${reportId}, tabs: ${tabsNum || 3}`);
+
+        const result = await pythonWorker.checkMacroStatus(reportId, tabsNum || 3);
+
+        res.json({ data: result });
+
+    } catch (error) {
+        console.error('[CHECK MACRO STATUS] Error:', error);
+
+        const statusCode = error.message?.includes('timeout') ? 504 : 500;
+
+        res.status(statusCode).json({
+            success: false,
+            error: error.message,
+            isTimeout: error.message?.includes('timeout')
+        });
+    }
+}
+
+const halfCheckMacroStatus = async (req, res) => {
+    try {
+        const { reportId, tabsNum } = req.body;
+
+        if (!reportId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Report ID is required'
+            });
+        }
+
+        console.log(`[HALF CHECK MACRO STATUS] Starting half-check for report: ${reportId}, tabs: ${tabsNum || 3}`);
+
+        const result = await pythonWorker.halfCheckMacroStatus(reportId, tabsNum || 3);
+
+        res.json({ data: result });
+
+    } catch (error) {
+        console.error('[HALF CHECK MACRO STATUS] Error:', error);
+
+        const statusCode = error.message?.includes('timeout') ? 504 : 500;
+
+        res.status(statusCode).json({
+            success: false,
+            error: error.message,
+            isTimeout: error.message?.includes('timeout')
+        });
+    }
+};
 
 module.exports = {
     validateExcelData,
     uploadWithoutBaseReportToDB,
     createAssets,
     grabMacroIds,
-    addCommonFieldsToAssets
+    addCommonFieldsToAssets,
+    editMacros,
+    checkMacroStatus,
+    halfCheckMacroStatus
 };

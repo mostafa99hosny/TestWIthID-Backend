@@ -1,88 +1,12 @@
-import asyncio, time, json, sys
+import asyncio
+from .formFiller import bulk_inject_inputs
+from scripts.core.browser.utils import wait_for_element
+from scripts.core.browser.worker_taqeem import check_control
+from datetime import datetime
 
-async def wait_for_element(page, selector, timeout=30, check_interval=0.5):
-    """Wait for an element to appear on the page"""
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        try:
-            element = await page.query_selector(selector)
-            if element:
-                return element
-        except Exception:
-            pass
-        await asyncio.sleep(check_interval)
-    return None
-
-async def bulk_inject_inputs(page, macro_data, field_map, field_types):
-    """Inject form data using JavaScript for better performance"""
-    jsdata = {}
-
-    for key, selector in field_map.items():
-        if key not in macro_data:
-            continue
-
-        field_type = field_types.get(key, "text")
-        value = str(macro_data[key] or "").strip()
-
-        if field_type == "date" and value:
-            try:
-                from datetime import datetime
-                value = datetime.strptime(value, "%d-%m-%Y").strftime("%Y-%m-%d")
-            except ValueError:
-                try:
-                    datetime.strptime(value, "%Y-%m-%d")
-                except ValueError:
-                    print(f"[WARNING] Invalid date format for {key}: {value}", file=sys.stderr)
-                    continue
-
-        jsdata[selector] = {"type": field_type, "value": value}
-
-    js = f"""
-    (function() {{
-        const data = {json.dumps(jsdata)};
-        for (const [selector, meta] of Object.entries(data)) {{
-            const el = document.querySelector(selector);
-            if (!el) continue;
-
-            switch(meta.type) {{
-                case "checkbox":
-                    el.checked = Boolean(meta.value);
-                    el.dispatchEvent(new Event("change", {{ bubbles: true }}));
-                    break;
-
-                case "select":
-                    let found = false;
-                    for (const opt of el.options) {{
-                        if (opt.value == meta.value || opt.text == meta.value) {{
-                            el.value = opt.value;
-                            found = true;
-                            break;
-                        }}
-                    }}
-                    if (!found && el.options.length) {{
-                        el.selectedIndex = 0;
-                    }}
-                    el.dispatchEvent(new Event("change", {{ bubbles: true }}));
-                    break;
-
-                case "date":
-                case "text":
-                default:
-                    el.value = meta.value ?? "";
-                    el.dispatchEvent(new Event("input", {{ bubbles: true }}));
-                    el.dispatchEvent(new Event("change", {{ bubbles: true }}));
-                    break;
-            }}
-        }}
-    }})();
-    """
-
-    await page.evaluate(js)
 
 async def save_macros(page, macro_data, field_map, field_types, control_state=None):
-    """Fill and save macro form"""
-    from scripts.core.browser.worker_taqeem import check_control
-    
+    """Fill and save macro form"""  
     try:
         if control_state:
             await check_control(control_state)
@@ -124,8 +48,6 @@ def calculate_tab_batches(total_macros, max_tabs, batch_size=10):
 async def create_macros_multi_tab(browser, report_id, macro_count, macro_data_template, 
                                   field_map, field_types, max_tabs=3, batch_size=10, 
                                   control_state=None):
-    from scripts.core.browser.worker_taqeem import check_control
-    from datetime import datetime
     
     try:
         if control_state:

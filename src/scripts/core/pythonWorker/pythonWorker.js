@@ -8,7 +8,7 @@ class PythonWorker {
         this.pendingCommands = new Map();
         this.commandId = 0;
         this.isWorkerReady = false;
-        this.completedBatches = new Set(); // Track completed batches to prevent duplicate emits
+        this.completedBatches = new Set();
     }
 
     startWorker() {
@@ -22,19 +22,15 @@ class PythonWorker {
             ? path.join(__dirname, '../../../../.venv/Scripts/python.exe')
             : path.join(__dirname, '../../../../.venv/bin/python');
 
-        // repoRoot .../TestWithID_Backend
         const repoRoot = path.resolve(__dirname, '../../../..');
-        // srcDir .../TestWithID_Backend/src  (this must contain the "scripts" package)
         const srcDir = path.join(repoRoot, 'src');
-
-        // Run worker as a module: scripts.core.browser.worker_taqeem
         const modulePath = 'scripts.core.browser.worker_taqeem';
 
         console.log(`[PY] Starting worker (module): ${pythonExecutable} -m ${modulePath}`);
         this.worker = spawn(pythonExecutable, ['-m', modulePath], {
-            cwd: srcDir,                      // IMPORTANT: be in src/
+            cwd: srcDir,
             stdio: ['pipe', 'pipe', 'pipe'],
-            env: {                            // make src importable
+            env: {
                 ...process.env,
                 PYTHONPATH: srcDir
             }
@@ -87,30 +83,87 @@ class PythonWorker {
             const response = JSON.parse(line);
             console.log('[PY] Response:', response);
 
-            // Handle progress updates
+            // Handle progress updates with enhanced macro edit support
             if (response.type === 'PROGRESS') {
-                const io = require('./socketService').getIO();
-                if (io && response.batchId) {
-                    // Emit regular progress updates
-                    io.to(`batch_${response.batchId}`).emit('processing_progress', response);
+                const io = require('../../../socket/socketService').getIO();
+                if (io && response.reportId) {
+                    const progressData = {
+                        reportId: response.reportId,
+                        status: response.status,
+                        message: response.message,
+                        data: {
+                            percentage: response.percentage || 0,
+                            current: response.current,
+                            total: response.total,
+                            macro_id: response.macro_id,
+                            failed_records: response.failed_records,
+                            numTabs: response.numTabs,
+                            error: response.error
+                        },
+                        timestamp: new Date().toISOString()
+                    };
 
-                    // Only emit processing_complete ONCE per batch
-                    if (response.status === 'COMPLETED' && !this.completedBatches.has(response.batchId)) {
-                        this.completedBatches.add(response.batchId);
+                    // Emit to report-specific room
+                    io.to(`progress_${response.reportId}`).emit('macro_edit_progress', progressData);
 
-                        io.to(`batch_${response.batchId}`).emit('processing_complete', {
+                    // Also emit to batch room if batchId exists
+                    if (response.batchId) {
+                        io.to(`batch_${response.batchId}`).emit('processing_progress', response);
+                    }
+
+                    // Handle completion - prevent duplicate emits
+                    if (response.status === 'COMPLETED' && !this.completedBatches.has(response.reportId)) {
+                        this.completedBatches.add(response.reportId);
+
+                        const completionData = {
+                            reportId: response.reportId,
                             batchId: response.batchId,
                             status: 'COMPLETED',
                             message: response.message,
-                            failedRecords: response.failed_records || 0,
-                            numTabs: response.numTabs,
-                            percentage: 100,
+                            data: {
+                                percentage: 100,
+                                failedRecords: response.failed_records || 0,
+                                numTabs: response.numTabs || 1,
+                                total: response.total,
+                                current: response.current
+                            },
                             timestamp: new Date().toISOString()
-                        });
+                        };
 
-                        const socketService = require('./socketService');
-                        socketService.activeSessions.delete(response.batchId);
-                        console.log(`[PROCESSING COMPLETE] Batch ${response.batchId} completed using ${response.numTabs || 1} tabs`);
+                        io.to(`progress_${response.reportId}`).emit('macro_edit_complete', completionData);
+
+                        if (response.batchId) {
+                            io.to(`batch_${response.batchId}`).emit('processing_complete', completionData);
+                            const socketService = require('../../../socket/socketService');
+                            socketService.activeSessions.delete(response.batchId);
+                        }
+
+                        console.log(`[MACRO EDIT COMPLETE] Report ${response.reportId} completed using ${response.numTabs || 1} tabs`);
+
+                        // Clear completion tracking after a delay
+                        setTimeout(() => {
+                            this.completedBatches.delete(response.reportId);
+                        }, 5000);
+                    }
+
+                    // Handle errors
+                    if (response.status === 'FAILED' || response.status === 'ERROR') {
+                        const errorData = {
+                            reportId: response.reportId,
+                            batchId: response.batchId,
+                            status: 'FAILED',
+                            error: response.error || response.message,
+                            data: {
+                                macro_id: response.macro_id
+                            },
+                            timestamp: new Date().toISOString()
+                        };
+
+                        io.to(`progress_${response.reportId}`).emit('macro_edit_error', errorData);
+
+                        if (response.batchId) {
+                            io.to(`batch_${response.batchId}`).emit('processing_error', errorData);
+                        }
                     }
                 }
                 return;
@@ -124,8 +177,8 @@ class PythonWorker {
                     this.pendingCommands.delete(response.commandId);
 
                     if (response.batchId && (response.status === 'SUCCESS' || response.status === 'STOPPED' || response.status === 'FAILED')) {
-                        const io = require('./socketService').getIO();
-                        const socketService = require('./socketService');
+                        const io = require('../../../socket/socketService').getIO();
+                        const socketService = require('../../../socket/socketService');
 
                         if (response.status === 'STOPPED') {
                             io.to(`batch_${response.batchId}`).emit('processing_stopped', {
@@ -135,7 +188,7 @@ class PythonWorker {
                                 timestamp: new Date().toISOString()
                             });
                             socketService.activeSessions.delete(response.batchId);
-                            this.completedBatches.delete(response.batchId); // Remove from completed batches
+                            this.completedBatches.delete(response.batchId);
                             console.log(`[PROCESSING STOPPED] Batch ${response.batchId}`);
                         } else if (response.status === 'FAILED') {
                             io.to(`batch_${response.batchId}`).emit('processing_error', {
@@ -145,10 +198,9 @@ class PythonWorker {
                                 timestamp: new Date().toISOString()
                             });
                             socketService.activeSessions.delete(response.batchId);
-                            this.completedBatches.delete(response.batchId); // Remove from completed batches
+                            this.completedBatches.delete(response.batchId);
                             console.log(`[PROCESSING FAILED] Batch ${response.batchId}`);
                         } else if (response.status === 'SUCCESS') {
-                            // Clean up completed batch from tracking
                             this.completedBatches.delete(response.batchId);
                         }
                     }
@@ -162,7 +214,6 @@ class PythonWorker {
 
     async sendCommand(command) {
         if (!this.worker || !this.isWorkerReady) {
-            // Start and wait for actual spawn before writing
             await new Promise((resolve, reject) => {
                 const w = this.startWorker();
                 const onSpawn = () => {
@@ -188,7 +239,7 @@ class PythonWorker {
                 this.worker.stdin.write(JSON.stringify(commandWithId) + '\n');
                 console.log(
                     `[PY] Sent command: ${command.action} (id: ${commandId})`,
-                    command.numTabs ? `with ${command.numTabs} tabs` : ''
+                    command.tabsNum ? `with ${command.tabsNum} tabs` : ''
                 );
             } catch (error) {
                 this.pendingCommands.delete(commandId);
@@ -196,7 +247,6 @@ class PythonWorker {
             }
         });
     }
-
 
     async ping() {
         return this.sendCommand({ action: 'ping' });
@@ -235,15 +285,13 @@ class PythonWorker {
     }
 
     async createAssets(reportId, macroCount, tabsNum = 3) {
-        // Validate and sanitize tabsNum
         let validatedTabsNum = parseInt(tabsNum);
         if (isNaN(validatedTabsNum) || validatedTabsNum < 1) {
             validatedTabsNum = 1;
         } else if (validatedTabsNum > 10) {
-            validatedTabsNum = 10; // Max safety limit
+            validatedTabsNum = 10;
         }
 
-        // Validate macroCount
         let validatedMacroCount = parseInt(macroCount);
         if (isNaN(validatedMacroCount) || validatedMacroCount < 1) {
             throw new Error('Invalid macro count');
@@ -259,30 +307,44 @@ class PythonWorker {
         });
     }
 
-    async grabMacroIds(reportId) {
+    async grabMacroIds(reportId, tabsNum) {
         return this.sendCommand({
             action: 'grab_ids',
             reportId,
+            tabsNum
         });
     }
 
-    async processTaqeemBatch(batchId, reportIds, numTabs = 1, socketMode = true) {
-        // Validate and sanitize numTabs
-        let validatedNumTabs = parseInt(numTabs);
-        if (isNaN(validatedNumTabs) || validatedNumTabs < 1) {
-            validatedNumTabs = 1;
-        } else if (validatedNumTabs > 10) {
-            validatedNumTabs = 10; // Max safety limit
+    async editMacros(reportId, tabsNum = 3) {
+        let validatedTabsNum = parseInt(tabsNum);
+        if (isNaN(validatedTabsNum) || validatedTabsNum < 1) {
+            validatedTabsNum = 1;
+        } else if (validatedTabsNum > 10) {
+            validatedTabsNum = 10;
         }
 
-        console.log(`[PY] Processing batch ${batchId} with ${reportIds.length} reports using ${validatedNumTabs} tabs`);
+        console.log(`[PY] Editing macros for report ${reportId} using ${validatedTabsNum} tabs`);
 
         return this.sendCommand({
-            action: 'processTaqeemBatch',
-            batchId,
-            reportIds,
-            numTabs: validatedNumTabs,
-            socketMode
+            action: 'edit_macros',
+            reportId,
+            tabsNum: validatedTabsNum
+        });
+    }
+
+    async checkMacroStatus(reportId, tabsNum = 3) {
+        return this.sendCommand({
+            action: 'check_macro_status',
+            reportId,
+            tabsNum
+        });
+    }
+
+    async halfCheckMacroStatus(reportId, tabsNum = 3) {
+        return this.sendCommand({
+            action: 'half_check_macro_status',
+            reportId,
+            tabsNum
         });
     }
 
@@ -325,7 +387,7 @@ class PythonWorker {
                 this.worker.kill('SIGTERM');
                 this.worker = null;
                 this.isWorkerReady = false;
-                this.completedBatches.clear(); // Clear tracking on shutdown
+                this.completedBatches.clear();
             }
         }
     }

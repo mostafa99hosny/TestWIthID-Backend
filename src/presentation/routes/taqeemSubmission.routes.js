@@ -5,7 +5,10 @@ const {
     uploadWithoutBaseReportToDB,
     createAssets,
     grabMacroIds,
-    addCommonFieldsToAssets
+    addCommonFieldsToAssets,
+    editMacros,
+    checkMacroStatus,
+    halfCheckMacroStatus
 } = require('../controllers/taqeemSubmission.controller');
 const upload = require('../../shared/utils/upload');
 
@@ -14,5 +17,8 @@ router.post('/save-without-base', upload.single('excelFile'), uploadWithoutBaseR
 router.post('/create-assets', createAssets);
 router.post('/grab-macro-ids', grabMacroIds);
 router.post('/add-common-fields', addCommonFieldsToAssets);
+router.post('/edit-macros', editMacros);
+router.post('/check-macro-status', checkMacroStatus);
+router.post('/half-check-macro-status', halfCheckMacroStatus);
 
 module.exports = router; 

@@ -6,7 +6,6 @@ import platform
 from scripts.loginFlow.login import startLogin, submitOtp
 from .browser import closeBrowser, get_browser
 from scripts.submission.validateReportExistence import validate_report
-from scripts.submission.createAssets import create_macros_multi_tab
 from scripts.delete.reportDelete import delete_report_flow
 from scripts.submission.grabMacroIds import get_all_macro_ids_parallel
 
@@ -225,6 +224,7 @@ async def command_handler():
                     # TODO: Get field_map and field_types from your form configuration
                     # For now, using placeholder - you'll need to import your actual config
                     from scripts.submission.formSteps import form_steps
+                    from scripts.submission.createAssets import create_macros_multi_tab
                     field_map = form_steps[1]["field_map"]
                     field_types = form_steps[1]["field_types"]
                     
@@ -287,6 +287,88 @@ async def command_handler():
                     report_id=cmd.get("reportId"),
                     tabs_num=cmd.get("tabsNum", 3)
                 )
+                result["commandId"] = cmd.get("commandId")
+                print(json.dumps(result), flush=True)
+
+            elif action == "edit_macros":
+                browser = await get_browser()
+                if not browser:
+                    result = {
+                        "status": "FAILED", 
+                        "error": "No active browser session. Please login first.",
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+                    continue
+                
+                report_id = cmd.get("reportId", {})
+                tabs_num = cmd.get("tabsNum", 3)
+                batch_id = cmd.get("batchId")
+                
+                # Create control state for this task
+                task_id = f"edit_macros_{batch_id}"
+                control_state = create_control_state(task_id, batch_id)
+                from scripts.submission.macroFiller import runMacroEdit
+                
+                try:
+                    result = await runMacroEdit(
+                        browser=browser,
+                        report_id=report_id,
+                        tabs_num=tabs_num,
+                        control_state=control_state,
+                    )
+                    result["commandId"] = cmd.get("commandId")
+                    print(json.dumps(result), flush=True)
+                    
+                except TaskStoppedException as e:
+                    result = {
+                        "status": "STOPPED",
+                        "message": str(e),
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+                    
+                except Exception as e:
+                    tb = traceback.format_exc()
+                    result = {
+                        "status": "FAILED",
+                        "error": str(e),
+                        "traceback": tb,
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+                    
+                finally:
+                    # Cleanup control state
+                    cleanup_control_state(task_id)
+
+            elif action == "check_macro_status":
+                from scripts.submission.checkMacroStatus import RunCheckMacroStatus
+                browser = await get_browser()
+                report_id = cmd.get("reportId")
+                tabs_num = cmd.get("tabsNum", 3)
+
+                result = await RunCheckMacroStatus(
+                    browser=browser,
+                    report_id=report_id,
+                    tabs_num=tabs_num   
+                )
+
+                result["commandId"] = cmd.get("commandId")
+                print(json.dumps(result), flush=True)
+
+            elif action == "half_check_macro_status":
+                from scripts.submission.checkMacroStatus import RunHalfCheckMacroStatus
+                browser = await get_browser()
+                report_id = cmd.get("reportId")
+                tabs_num = cmd.get("tabsNum", 3)
+
+                result = await RunHalfCheckMacroStatus(
+                    browser=browser,
+                    report_id=report_id,
+                    tabs_num=tabs_num   
+                )
+
                 result["commandId"] = cmd.get("commandId")
                 print(json.dumps(result), flush=True)
                 

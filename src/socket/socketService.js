@@ -33,6 +33,7 @@ class SocketService {
             require('./handlers/processingHandler')(socket, this);
             require('./handlers/sessionHandler')(socket, this);
             require('./handlers/disconnectHandler')(socket, this);
+            require('./handlers/progressHandler')(socket, this);
         });
     }
 
