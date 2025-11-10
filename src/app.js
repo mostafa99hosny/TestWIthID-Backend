@@ -9,6 +9,7 @@ const corsOptions = require('./shared/config/cors.options');
 const authRoutes = require('./presentation/routes/taqeemAuth.routes');
 const taqeemSubmissionRoutes = require('./presentation/routes/taqeemSubmission.routes');
 const taqeemDeleteRoutes = require('./presentation/routes/taqeemDelete.routes');
+const testReportRoutes = require('./presentation/routes/testReport.routes');
 
 const app = express();
 
@@ -28,6 +29,8 @@ app.use((req, res, next) => {
 app.use('/api/taqeemAuth', authRoutes);
 app.use('/api/taqeemSubmission', taqeemSubmissionRoutes);
 app.use('/api/taqeemDelete', taqeemDeleteRoutes);
+app.use('/api/reports', testReportRoutes);
+
 
 // Health check endpoint
 app.get('/health', (req, res) => {
