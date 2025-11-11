@@ -78,104 +78,149 @@ class PythonWorker {
         return this.worker;
     }
 
+    // Replace the handleWorkerOutput method in PythonWorker class
+
+    // Replace the handleWorkerOutput method in PythonWorker class
+    // This version correctly handles the Python emit_progress structure
+
     handleWorkerOutput(line) {
         try {
             const response = JSON.parse(line);
-            console.log('[PY] Response:', response);
+            console.log('[PY] Raw Response:', response);
 
-            // Handle progress updates with enhanced macro edit support
+            // Handle progress updates from Python's emit_progress function
             if (response.type === 'PROGRESS') {
                 const io = require('../../../socket/socketService').getIO();
-                if (io && response.reportId) {
-                    const progressData = {
-                        reportId: response.reportId,
-                        status: response.status,
-                        message: response.message,
+
+                if (!io) {
+                    console.error('[SOCKET DEBUG] IO instance is NULL - cannot emit');
+                    return;
+                }
+
+                // CRITICAL: Python sends batchId, which IS the reportId in single report context
+                const reportId = response.batchId;
+                const batchId = response.batchId; // Keep for batch operations
+
+                console.log('[SOCKET DEBUG] Processing PROGRESS event');
+                console.log('[SOCKET DEBUG] batchId from Python:', response.batchId);
+                console.log('[SOCKET DEBUG] Using as reportId:', reportId);
+                console.log('[SOCKET DEBUG] Status:', response.status);
+                console.log('[SOCKET DEBUG] Asset Index:', response.assetIndex);
+                console.log('[SOCKET DEBUG] Tab ID:', response.tabId);
+
+                if (!reportId) {
+                    console.error('[SOCKET DEBUG] No batchId/reportId - cannot emit progress');
+                    return;
+                }
+
+                // Build standardized progress data
+                const progressData = {
+                    reportId: reportId,
+                    batchId: batchId,
+                    status: response.status,
+                    message: response.message,
+                    data: {
+                        percentage: response.percentage || 0,
+                        current: response.current || response.assetIndex || 0,
+                        total: response.total || 0,
+                        macro_id: response.macro_id,
+                        failed_records: response.failed_records || response.failedRecords || 0,
+                        numTabs: response.numTabs || response.tabsNum || 1,
+                        error: response.error,
+                        assetIndex: response.assetIndex,
+                        tabId: response.tabId
+                    },
+                    timestamp: new Date().toISOString()
+                };
+
+                // Emit to report-specific room
+                const roomName = `progress_${reportId}`;
+                console.log(`[SOCKET EMIT] Emitting 'macro_edit_progress' to room: ${roomName}`);
+                console.log(`[SOCKET EMIT] Data:`, JSON.stringify(progressData, null, 2));
+
+                io.to(roomName).emit('macro_edit_progress', progressData);
+
+                // Also emit to batch room if it's a batch operation
+                if (batchId) {
+                    console.log(`[SOCKET EMIT] Also emitting to batch room: batch_${batchId}`);
+                    io.to(`batch_${batchId}`).emit('processing_progress', progressData);
+                }
+
+                // Handle completion - prevent duplicate emits
+                if (response.status === 'COMPLETED' && !this.completedBatches.has(reportId)) {
+                    this.completedBatches.add(reportId);
+
+                    const completionData = {
+                        reportId: reportId,
+                        batchId: batchId,
+                        status: 'COMPLETED',
+                        message: response.message || 'Processing completed successfully',
                         data: {
-                            percentage: response.percentage || 0,
-                            current: response.current,
-                            total: response.total,
-                            macro_id: response.macro_id,
-                            failed_records: response.failed_records,
-                            numTabs: response.numTabs,
-                            error: response.error
+                            percentage: 100,
+                            failedRecords: response.failed_records || response.failedRecords || 0,
+                            numTabs: response.numTabs || response.tabsNum || 1,
+                            total: response.total || 0,
+                            current: response.current || response.total || 0,
+                            assetIndex: response.assetIndex,
+                            tabId: response.tabId
                         },
                         timestamp: new Date().toISOString()
                     };
 
-                    // Emit to report-specific room
-                    io.to(`progress_${response.reportId}`).emit('macro_edit_progress', progressData);
+                    console.log(`[SOCKET EMIT] Emitting 'macro_edit_complete' to room: ${roomName}`);
+                    io.to(roomName).emit('macro_edit_complete', completionData);
 
-                    // Also emit to batch room if batchId exists
-                    if (response.batchId) {
-                        io.to(`batch_${response.batchId}`).emit('processing_progress', response);
+                    if (batchId) {
+                        io.to(`batch_${batchId}`).emit('processing_complete', completionData);
+                        const socketService = require('../../../socket/socketService');
+                        socketService.activeSessions.delete(batchId);
                     }
 
-                    // Handle completion - prevent duplicate emits
-                    if (response.status === 'COMPLETED' && !this.completedBatches.has(response.reportId)) {
-                        this.completedBatches.add(response.reportId);
+                    console.log(`[MACRO EDIT COMPLETE] Report ${reportId} completed using ${response.numTabs || response.tabsNum || 1} tabs`);
 
-                        const completionData = {
-                            reportId: response.reportId,
-                            batchId: response.batchId,
-                            status: 'COMPLETED',
-                            message: response.message,
-                            data: {
-                                percentage: 100,
-                                failedRecords: response.failed_records || 0,
-                                numTabs: response.numTabs || 1,
-                                total: response.total,
-                                current: response.current
-                            },
-                            timestamp: new Date().toISOString()
-                        };
+                    // Clear completion tracking after a delay
+                    setTimeout(() => {
+                        this.completedBatches.delete(reportId);
+                    }, 5000);
+                }
 
-                        io.to(`progress_${response.reportId}`).emit('macro_edit_complete', completionData);
+                // Handle errors
+                if (response.status === 'FAILED' || response.status === 'ERROR') {
+                    const errorData = {
+                        reportId: reportId,
+                        batchId: batchId,
+                        status: 'FAILED',
+                        error: response.error || response.message || 'An error occurred',
+                        data: {
+                            macro_id: response.macro_id,
+                            assetIndex: response.assetIndex,
+                            tabId: response.tabId
+                        },
+                        timestamp: new Date().toISOString()
+                    };
 
-                        if (response.batchId) {
-                            io.to(`batch_${response.batchId}`).emit('processing_complete', completionData);
-                            const socketService = require('../../../socket/socketService');
-                            socketService.activeSessions.delete(response.batchId);
-                        }
+                    console.log(`[SOCKET EMIT] Emitting 'macro_edit_error' to room: ${roomName}`);
+                    io.to(roomName).emit('macro_edit_error', errorData);
 
-                        console.log(`[MACRO EDIT COMPLETE] Report ${response.reportId} completed using ${response.numTabs || 1} tabs`);
-
-                        // Clear completion tracking after a delay
-                        setTimeout(() => {
-                            this.completedBatches.delete(response.reportId);
-                        }, 5000);
-                    }
-
-                    // Handle errors
-                    if (response.status === 'FAILED' || response.status === 'ERROR') {
-                        const errorData = {
-                            reportId: response.reportId,
-                            batchId: response.batchId,
-                            status: 'FAILED',
-                            error: response.error || response.message,
-                            data: {
-                                macro_id: response.macro_id
-                            },
-                            timestamp: new Date().toISOString()
-                        };
-
-                        io.to(`progress_${response.reportId}`).emit('macro_edit_error', errorData);
-
-                        if (response.batchId) {
-                            io.to(`batch_${response.batchId}`).emit('processing_error', errorData);
-                        }
+                    if (batchId) {
+                        io.to(`batch_${batchId}`).emit('processing_error', errorData);
                     }
                 }
+
                 return;
             }
 
-            // Handle command responses
+            // Handle command responses (with commandId)
             if (response.commandId !== undefined) {
+                console.log('[PY] Command response received, commandId:', response.commandId);
                 const handler = this.pendingCommands.get(response.commandId);
+
                 if (handler) {
                     handler.resolve(response);
                     this.pendingCommands.delete(response.commandId);
+                    console.log('[PY] Command handler resolved for commandId:', response.commandId);
 
+                    // Handle batch completion/stop/failure
                     if (response.batchId && (response.status === 'SUCCESS' || response.status === 'STOPPED' || response.status === 'FAILED')) {
                         const io = require('../../../socket/socketService').getIO();
                         const socketService = require('../../../socket/socketService');
@@ -183,8 +228,9 @@ class PythonWorker {
                         if (response.status === 'STOPPED') {
                             io.to(`batch_${response.batchId}`).emit('processing_stopped', {
                                 batchId: response.batchId,
+                                reportId: response.batchId,
                                 status: 'STOPPED',
-                                message: response.message,
+                                message: response.message || 'Processing stopped',
                                 timestamp: new Date().toISOString()
                             });
                             socketService.activeSessions.delete(response.batchId);
@@ -193,8 +239,9 @@ class PythonWorker {
                         } else if (response.status === 'FAILED') {
                             io.to(`batch_${response.batchId}`).emit('processing_error', {
                                 batchId: response.batchId,
+                                reportId: response.batchId,
                                 status: 'FAILED',
-                                error: response.error,
+                                error: response.error || 'Processing failed',
                                 timestamp: new Date().toISOString()
                             });
                             socketService.activeSessions.delete(response.batchId);
@@ -202,13 +249,17 @@ class PythonWorker {
                             console.log(`[PROCESSING FAILED] Batch ${response.batchId}`);
                         } else if (response.status === 'SUCCESS') {
                             this.completedBatches.delete(response.batchId);
+                            console.log(`[PROCESSING SUCCESS] Batch ${response.batchId}`);
                         }
                     }
+                } else {
+                    console.warn('[PY] No handler found for commandId:', response.commandId);
                 }
             }
 
         } catch (error) {
-            console.error('[PY] Failed to parse worker output:', line, error);
+            console.error('[PY] Failed to parse worker output:', line);
+            console.error('[PY] Parse error:', error);
         }
     }
 
