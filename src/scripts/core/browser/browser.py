@@ -36,6 +36,22 @@ async def closeBrowser():
         finally:
             _browser = None
 
+async def is_browser_open():
+    """Check if browser instance exists and is active"""
+    global _browser
+    if _browser is None:
+        return False
+    
+    try:
+        # Try to access the browser's main tab to verify it's actually running
+        # If the browser was closed externally, this will fail
+        _ = _browser.main_tab
+        return True
+    except Exception:
+        # Browser instance exists but is not actually running
+        _browser = None
+        return False
+
 async def wait_for_element(page, selector, timeout=30):
     """Wait for element with timeout"""
     try:

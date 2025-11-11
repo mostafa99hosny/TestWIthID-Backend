@@ -78,11 +78,6 @@ class PythonWorker {
         return this.worker;
     }
 
-    // Replace the handleWorkerOutput method in PythonWorker class
-
-    // Replace the handleWorkerOutput method in PythonWorker class
-    // This version correctly handles the Python emit_progress structure
-
     handleWorkerOutput(line) {
         try {
             const response = JSON.parse(line);
@@ -301,6 +296,11 @@ class PythonWorker {
 
     async ping() {
         return this.sendCommand({ action: 'ping' });
+    }
+    async checkBrowserStatus() {
+        return this.sendCommand({
+            action: 'check_browser'
+        });
     }
 
     async login(email, password, method = null) {

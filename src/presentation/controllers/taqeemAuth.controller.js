@@ -186,10 +186,44 @@ const healthCheck = async (req, res) => {
     }
 };
 
+const checkBrowserStatus = async (req, res) => {
+    try {
+        console.log('[BROWSER] Checking browser status');
+
+        const result = await pythonWorker.checkBrowserStatus();
+
+        if (result.status === 'SUCCESS') {
+            return res.json({
+                success: true,
+                browserOpen: result.browserOpen,
+                message: result.browserOpen
+                    ? 'Browser is open and active'
+                    : 'Browser is not open'
+            });
+        }
+
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to check browser status',
+            data: result
+        });
+
+    } catch (error) {
+        console.error('[BROWSER] Status check error:', error);
+
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            browserOpen: false
+        });
+    }
+};
+
 module.exports = {
     login,
     submitOtp,
     logout,
     getAuthStatus,
-    healthCheck
+    healthCheck,
+    checkBrowserStatus
 };
