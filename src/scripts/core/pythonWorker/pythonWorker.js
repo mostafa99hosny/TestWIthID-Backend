@@ -297,6 +297,7 @@ class PythonWorker {
     async ping() {
         return this.sendCommand({ action: 'ping' });
     }
+
     async checkBrowserStatus() {
         return this.sendCommand({
             action: 'check_browser'
@@ -379,7 +380,8 @@ class PythonWorker {
         return this.sendCommand({
             action: 'edit_macros',
             reportId,
-            tabsNum: validatedTabsNum
+            tabsNum: validatedTabsNum,
+            batchId: reportId
         });
     }
 

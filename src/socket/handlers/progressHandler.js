@@ -48,6 +48,7 @@ module.exports = (socket, socketService) => {
             return;
         }
 
+
         // Check if there's an active session for this report
         let activeSession = null;
         for (const [sessionId, session] of socketService.activeSessions.entries()) {
@@ -63,5 +64,50 @@ module.exports = (socket, socketService) => {
             session: activeSession || null,
             timestamp: new Date().toISOString()
         });
+    });
+
+    socket.on('pause_processing', async (data) => {
+        const { reportId } = data;
+        console.log(`[SOCKET] Pause request for report: ${reportId}`);
+
+        try {
+            const pythonWorker = require('../scripts/core/pythonWorker/index');
+            const result = await pythonWorker.pauseProcessing(reportId);
+
+            socket.emit('pause_result', {
+                success: result.status === 'PAUSED',
+                reportId,
+                data: result
+            });
+        } catch (error) {
+            socket.emit('pause_result', {
+                success: false,
+                reportId,
+                error: error.message
+            });
+        }
+    });
+
+    // Handle resume request from frontend (optional - can also go through HTTP)
+    socket.on('resume_processing', async (data) => {
+        const { reportId } = data;
+        console.log(`[SOCKET] Resume request for report: ${reportId}`);
+
+        try {
+            const pythonWorker = require('../scripts/core/pythonWorker/index');
+            const result = await pythonWorker.resumeProcessing(reportId);
+
+            socket.emit('resume_result', {
+                success: result.status === 'RESUMED',
+                reportId,
+                data: result
+            });
+        } catch (error) {
+            socket.emit('resume_result', {
+                success: false,
+                reportId,
+                error: error.message
+            });
+        }
     });
 };

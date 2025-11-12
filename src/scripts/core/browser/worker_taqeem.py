@@ -23,11 +23,15 @@ class TaskStoppedException(Exception):
 
 def create_control_state(task_id, batch_id=None):
     """Create a new control state for a task"""
+    # Normalize batch_id to string for consistent comparison
+    batch_id = str(batch_id) if batch_id is not None else None
+    
     _task_controls[task_id] = {
         "paused": False,
         "stopped": False,
         "batch_id": batch_id
     }
+    print(f"[PY DEBUG] Created control state: task_id={task_id}, batch_id={batch_id} (type: {type(batch_id)})", file=sys.stderr)
     return _task_controls[task_id]
 
 def get_control_state(task_id):
@@ -43,42 +47,73 @@ def cleanup_control_state(task_id):
 
 async def check_control(state):
     """Check if we should pause or stop"""
+    print(f"[PY DEBUG CHECK_CONTROL] Checking state: paused={state.get('paused')}, stopped={state.get('stopped')}", file=sys.stderr)
+    
     if state.get("stopped"):
+        print(f"[PY DEBUG CHECK_CONTROL] Task is STOPPED - raising exception", file=sys.stderr)
         raise TaskStoppedException("Task was stopped by user")
     
+    was_paused = False
     while state.get("paused"):
+        if not was_paused:
+            print(f"[PY DEBUG CHECK_CONTROL] Task is PAUSED - entering wait loop", file=sys.stderr)
+            was_paused = True
         await asyncio.sleep(0.5)
         if state.get("stopped"):
+            print(f"[PY DEBUG CHECK_CONTROL] Task was stopped while paused", file=sys.stderr)
             raise TaskStoppedException("Task was stopped by user")
+    
+    if was_paused:
+        print(f"[PY DEBUG CHECK_CONTROL] Task RESUMED - exiting wait loop", file=sys.stderr)
 
 async def handle_control_command(cmd):
     """Handle control commands (pause, resume, stop)"""
     try:
         action = cmd.get("action")
-        batch_id = cmd.get("batchId")
+        batch_id = str(cmd.get("batchId")) if cmd.get("batchId") is not None else None
         
-        print(f"[PY] Control command: {action} for batch {batch_id}", file=sys.stderr)
+        print(f"[PY DEBUG] Control command received:", file=sys.stderr)
+        print(f"[PY DEBUG]   action: {action}", file=sys.stderr)
+        print(f"[PY DEBUG]   batchId: {batch_id}", file=sys.stderr)
+        
+        # Debug: Print all current control states
+        print(f"[PY DEBUG] Current _task_controls:", file=sys.stderr)
+        for task_id, state in _task_controls.items():
+            print(f"[PY DEBUG]   {task_id}: batch_id={state.get('batch_id')}, paused={state.get('paused')}, stopped={state.get('stopped')}", file=sys.stderr)
         
         # Find control state by batch_id
         target_state = None
         target_task_id = None
         
         for task_id, state in _task_controls.items():
-            if state.get("batch_id") == batch_id:
+            state_batch_id = str(state.get("batch_id")) if state.get("batch_id") is not None else None
+            print(f"[PY DEBUG] Comparing: task={task_id}, state_batch_id={state_batch_id}, looking_for={batch_id}", file=sys.stderr)
+            
+            if state_batch_id == batch_id:
                 target_state = state
                 target_task_id = task_id
+                print(f"[PY DEBUG] MATCH FOUND! task_id={task_id}", file=sys.stderr)
                 break
         
         if not target_state:
+            error_msg = f"No active task found for batch {batch_id}"
+            print(f"[PY DEBUG] ERROR: {error_msg}", file=sys.stderr)
             result = {
                 "status": "FAILED", 
-                "error": f"No active task found for batch {batch_id}",
-                "commandId": cmd.get("commandId")
+                "error": error_msg,
+                "commandId": cmd.get("commandId"),
+                "debug": {
+                    "available_tasks": list(_task_controls.keys()),
+                    "available_batch_ids": [str(s.get("batch_id")) for s in _task_controls.values()]
+                }
             }
             print(json.dumps(result), flush=True)
             return
         
+        print(f"[PY DEBUG] Found target_state for task_id={target_task_id}", file=sys.stderr)
+        
         if action == "pause":
+            print(f"[PY DEBUG] Setting paused=True for task {target_task_id}", file=sys.stderr)
             target_state["paused"] = True
             result = {
                 "status": "PAUSED", 
@@ -88,6 +123,7 @@ async def handle_control_command(cmd):
             }
             
         elif action == "resume":
+            print(f"[PY DEBUG] Setting paused=False for task {target_task_id}", file=sys.stderr)
             target_state["paused"] = False
             result = {
                 "status": "RESUMED", 
@@ -97,8 +133,9 @@ async def handle_control_command(cmd):
             }
             
         elif action == "stop":
+            print(f"[PY DEBUG] Setting stopped=True for task {target_task_id}", file=sys.stderr)
             target_state["stopped"] = True
-            target_state["paused"] = False  # Unpause if paused
+            target_state["paused"] = False
             
             # Close all tabs except the main page
             try:
@@ -121,10 +158,16 @@ async def handle_control_command(cmd):
                 "commandId": cmd.get("commandId")
             }
         
+        print(f"[PY DEBUG] Sending result: {result}", file=sys.stderr)
         print(json.dumps(result), flush=True)
+        
+        # Verify the state was actually changed
+        print(f"[PY DEBUG] After change, target_state is now: paused={target_state.get('paused')}, stopped={target_state.get('stopped')}", file=sys.stderr)
         
     except Exception as e:
         tb = traceback.format_exc()
+        print(f"[PY DEBUG] Exception in handle_control_command: {e}", file=sys.stderr)
+        print(f"[PY DEBUG] Traceback: {tb}", file=sys.stderr)
         result = {
             "status": "FAILED", 
             "error": str(e), 
@@ -132,6 +175,50 @@ async def handle_control_command(cmd):
             "commandId": cmd.get("commandId")
         }
         print(json.dumps(result), flush=True)
+
+async def run_edit_macros_task(cmd, browser):
+    """Run edit_macros as a background task"""
+    report_id = cmd.get("reportId")
+    tabs_num = cmd.get("tabsNum", 3)
+    command_id = cmd.get("commandId")
+    
+    # Create control state for this task
+    task_id = f"edit_macros_{report_id}"
+    control_state = create_control_state(task_id, report_id)
+    
+    try:
+        from scripts.submission.macroFiller import runMacroEdit
+        
+        result = await runMacroEdit(
+            browser=browser,
+            report_id=report_id,
+            tabs_num=tabs_num,
+            control_state=control_state,
+        )
+        result["commandId"] = command_id
+        print(json.dumps(result), flush=True)
+        
+    except TaskStoppedException as e:
+        result = {
+            "status": "STOPPED",
+            "message": str(e),
+            "commandId": command_id
+        }
+        print(json.dumps(result), flush=True)
+        
+    except Exception as e:
+        tb = traceback.format_exc()
+        result = {
+            "status": "FAILED",
+            "error": str(e),
+            "traceback": tb,
+            "commandId": command_id
+        }
+        print(json.dumps(result), flush=True)
+        
+    finally:
+        # Cleanup control state
+        cleanup_control_state(task_id)
 
 async def command_handler():
     """Main command handler for the worker"""
@@ -146,6 +233,7 @@ async def command_handler():
             cmd = json.loads(line.strip())
             action = cmd.get("action")
             
+            print(f"[PY DEBUG] RAW COMMAND RECEIVED: {cmd}", file=sys.stderr)
             print(f"[PY] Received action: {action}", file=sys.stderr)
             
             if action == "login":
@@ -180,7 +268,6 @@ async def command_handler():
                 print(json.dumps(result), flush=True)
 
             elif action == "create_assets":
-                # Get browser instance
                 browser = await get_browser()
                 if not browser:
                     result = {
@@ -191,13 +278,11 @@ async def command_handler():
                     print(json.dumps(result), flush=True)
                     continue
                 
-                # Extract parameters
                 report_id = cmd.get("reportId")
                 macro_count = cmd.get("macroCount")
-                tabs_num = cmd.get("tabsNum", 3)  # Default to 3 tabs
+                tabs_num = cmd.get("tabsNum", 3)
                 batch_id = cmd.get("batchId")
                 
-                # Validate required parameters
                 if not report_id:
                     result = {
                         "status": "FAILED",
@@ -216,23 +301,17 @@ async def command_handler():
                     print(json.dumps(result), flush=True)
                     continue
                 
-                # Create control state for this task
                 task_id = f"create_assets_{report_id}_{batch_id}"
                 control_state = create_control_state(task_id, batch_id)
                 
                 try:
-                    # TODO: Get field_map and field_types from your form configuration
-                    # For now, using placeholder - you'll need to import your actual config
                     from scripts.submission.formSteps import form_steps
                     from scripts.submission.createAssets import create_macros_multi_tab
                     field_map = form_steps[1]["field_map"]
                     field_types = form_steps[1]["field_types"]
                     
-                    # TODO: Get macro data template
-                    # This should come from cmd or be constructed based on your needs
                     macro_data_template = cmd.get("macroData", {})
                     
-                    # Create the macros
                     result = await create_macros_multi_tab(
                         browser=browser,
                         report_id=report_id,
@@ -269,7 +348,6 @@ async def command_handler():
                     print(json.dumps(result), flush=True)
                     
                 finally:
-                    # Cleanup control state
                     cleanup_control_state(task_id)
 
             elif action == "delete_report":
@@ -301,46 +379,18 @@ async def command_handler():
                     print(json.dumps(result), flush=True)
                     continue
                 
-                report_id = cmd.get("reportId", {})
-                tabs_num = cmd.get("tabsNum", 3)
-                batch_id = cmd.get("batchId")
+                # Run as background task so command handler can continue processing
+                print(f"[PY DEBUG] Starting edit_macros task in background", file=sys.stderr)
+                task = asyncio.create_task(run_edit_macros_task(cmd, browser))
+                _active_tasks[cmd.get("reportId")] = task
                 
-                # Create control state for this task
-                task_id = f"edit_macros_{batch_id}"
-                control_state = create_control_state(task_id, batch_id)
-                from scripts.submission.macroFiller import runMacroEdit
-                
-                try:
-                    result = await runMacroEdit(
-                        browser=browser,
-                        report_id=report_id,
-                        tabs_num=tabs_num,
-                        control_state=control_state,
-                    )
-                    result["commandId"] = cmd.get("commandId")
-                    print(json.dumps(result), flush=True)
-                    
-                except TaskStoppedException as e:
-                    result = {
-                        "status": "STOPPED",
-                        "message": str(e),
-                        "commandId": cmd.get("commandId")
-                    }
-                    print(json.dumps(result), flush=True)
-                    
-                except Exception as e:
-                    tb = traceback.format_exc()
-                    result = {
-                        "status": "FAILED",
-                        "error": str(e),
-                        "traceback": tb,
-                        "commandId": cmd.get("commandId")
-                    }
-                    print(json.dumps(result), flush=True)
-                    
-                finally:
-                    # Cleanup control state
-                    cleanup_control_state(task_id)
+                # Send immediate acknowledgment
+                ack_result = {
+                    "status": "STARTED",
+                    "message": "Macro editing started",
+                    "commandId": cmd.get("commandId")
+                }
+                print(json.dumps(ack_result), flush=True)
 
             elif action == "check_macro_status":
                 from scripts.submission.checkMacroStatus import RunCheckMacroStatus
@@ -401,6 +451,7 @@ async def command_handler():
                 print(json.dumps(result), flush=True)
                 
             elif action in ["pause", "resume", "stop"]:
+                print(f"[PY DEBUG] Processing control command: {action}", file=sys.stderr)
                 await handle_control_command(cmd)
                 
             else:

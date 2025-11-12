@@ -116,6 +116,8 @@ async def handle_macro_edits(browser, record, tabs_num=3, control_state=None, re
             
             try:
                 print(f"Editing macro {macro_id} (chunk {chunk_index}, asset {asset_index})")
+                if control_state:
+                    await check_control(control_state)
                 
                 result = await fill_macro_form(
                     page,

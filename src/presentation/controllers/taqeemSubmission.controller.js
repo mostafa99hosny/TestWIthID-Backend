@@ -190,6 +190,80 @@ const addCommonFieldsToAssets = async (req, res) => {
     }
 }
 
+const pauseProcessing = async (req, res) => {
+    try {
+        const { reportId } = req.body;
+
+        if (!reportId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Report ID is required'
+            });
+        }
+
+        console.log(`[PAUSE] Pausing processing for report: ${reportId}`);
+
+        const result = await pythonWorker.pauseProcessing(reportId);
+
+        if (result.status === 'PAUSED') {
+            res.json({
+                success: true,
+                data: result
+            });
+        } else {
+            res.status(400).json({
+                success: false,
+                error: result.error || 'Failed to pause processing',
+                data: result
+            });
+        }
+
+    } catch (error) {
+        console.error('[PAUSE] Error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
+const resumeProcessing = async (req, res) => {
+    try {
+        const { reportId } = req.body;
+
+        if (!reportId) {
+            return res.status(400).json({
+                success: false,
+                error: 'Report ID is required'
+            });
+        }
+
+        console.log(`[RESUME] Resuming processing for report: ${reportId}`);
+
+        const result = await pythonWorker.resumeProcessing(reportId);
+
+        if (result.status === 'RESUMED') {
+            res.json({
+                success: true,
+                data: result
+            });
+        } else {
+            res.status(400).json({
+                success: false,
+                error: result.error || 'Failed to resume processing',
+                data: result
+            });
+        }
+
+    } catch (error) {
+        console.error('[RESUME] Error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
 const editMacros = async (req, res) => {
     try {
         const { reportId, tabsNum } = req.body;
@@ -270,5 +344,7 @@ module.exports = {
     addCommonFieldsToAssets,
     editMacros,
     checkMacroStatus,
-    halfCheckMacroStatus
+    halfCheckMacroStatus,
+    resumeProcessing,
+    pauseProcessing
 };

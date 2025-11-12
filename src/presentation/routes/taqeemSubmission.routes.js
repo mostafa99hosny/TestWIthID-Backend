@@ -8,7 +8,9 @@ const {
     addCommonFieldsToAssets,
     editMacros,
     checkMacroStatus,
-    halfCheckMacroStatus
+    halfCheckMacroStatus,
+    resumeProcessing,
+    pauseProcessing
 } = require('../controllers/taqeemSubmission.controller');
 const upload = require('../../shared/utils/upload');
 
@@ -20,5 +22,7 @@ router.post('/add-common-fields', addCommonFieldsToAssets);
 router.post('/edit-macros', editMacros);
 router.post('/check-macro-status', checkMacroStatus);
 router.post('/half-check-macro-status', halfCheckMacroStatus);
+router.post('/resume-processing', resumeProcessing);
+router.post('/pause-processing', pauseProcessing);
 
 module.exports = router; 
