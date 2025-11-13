@@ -1,7 +1,7 @@
 import asyncio
 import json
-from .utils import log
-from .browserCompat import new_window
+from .utils import log, wait_for_element
+from scripts.core.browser.browser import new_window
 
 # ---------- helpers ----------
 
@@ -358,4 +358,3 @@ async def edit_macro_and_save(macro_id: str, values: dict):
     waited = await _wait_post_save(page, macro_id, timeout=12)
     log(f"[save] submit_mode={mode}, post-save-wait={waited}", "INFO")
     return ok_submit and waited
-

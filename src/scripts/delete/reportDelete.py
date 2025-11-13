@@ -1,7 +1,6 @@
-# report_actions.py
 import asyncio, re, json
 from .utils import log
-from .browserCompat import new_window  # reliable new-tab open in nodriver
+from scripts.core.browser.browser import new_window  # reliable new-tab open in nodriver
 from .assetEdit import edit_macro_and_save
 
 # ==============================

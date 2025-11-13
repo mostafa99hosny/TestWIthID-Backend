@@ -1,5 +1,6 @@
 from nodriver import Browser
-import json
+from .utils import log
+from urllib.parse import urlparse
 
 _browser = None
 
@@ -19,9 +20,61 @@ async def get_browser(force_new=False):
     
     return _browser
 
+async def create_new_browser_window():
+    browser = await get_browser()
+    new_page = await browser.get("https://qima.taqeem.sa/", new_window=True)
+    log(f"Created new browser window with URL: {await new_page.evaluate('window.location.href')}", "INFO")
+    return new_page
+
+def _is_valid_http_url(url: str) -> bool:
+    try:
+        parts = urlparse(url)
+        return parts.scheme in ("http", "https") and bool(parts.netloc)
+    except Exception:
+        return False
+
 async def get_page():
     browser = await get_browser()
     return browser.main_tab
+
+async def navigate(url: str):
+    def _sanitize(u: str) -> str:
+        return (u or "").strip().strip('"\\' + "'")
+
+    url = _sanitize(url)
+    browser = await get_browser()
+
+    if not _is_valid_http_url(url):
+        log(f"Invalid URL -> '{url}'", "ERR")
+        page = await browser.new_page()
+        return page
+
+    # Try once, then restart browser and retry once more if transport fails
+    for attempt in range(2):
+        try:
+            return await browser.get(url)
+        except Exception as e:
+            log(f"browser.get() failed (try {attempt+1}/2): {e}", "WARN")
+            try:
+                page = await browser.new_page()
+                await page.evaluate("url => { window.location.href = url; }", url)
+                return page
+            except Exception as e2:
+                log(f"fallback window.location failed: {e2}", "WARN")
+                if attempt == 0:
+                    # restart browser and retry
+                    try:
+                        await closeBrowser()
+                    except Exception:
+                        pass
+                    # get_browser() will recreate
+                    browser = await get_browser()
+                else:
+                    # give up with a blank page
+                    try:
+                        return await browser.new_page()
+                    except Exception:
+                        raise
 
 async def set_page(page):
     # For compatibility - not needed with nodriver
@@ -76,3 +129,9 @@ async def wait_for_element(page, selector, timeout=30):
     except Exception as e:
         print(f"Warning: Element not found: {selector} - {e}")
         return None
+    
+async def new_window(url: str | None = None):
+    if url:
+        return await navigate(url)
+    browser = await get_browser()
+    return await browser.new_page()

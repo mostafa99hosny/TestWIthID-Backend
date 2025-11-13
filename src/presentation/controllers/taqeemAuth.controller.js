@@ -230,11 +230,35 @@ const checkBrowserStatus = async (req, res) => {
     }
 };
 
+const createNewWindow = async (req, res) => {
+    try {
+        console.log('[BROWSER] Creating new browser window');
+
+        const result = await pythonWorker.createNewWindow();
+
+        res.json({
+            success: true,
+            message: 'New browser window created successfully',
+            data: result
+        });
+
+    } catch (error) {
+        console.error('[BROWSER] Create new window error:', error);
+
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            message: 'Failed to create new browser window'
+        });
+    }
+};
+
 module.exports = {
     login,
     submitOtp,
     logout,
     getAuthStatus,
     healthCheck,
-    checkBrowserStatus
+    checkBrowserStatus,
+    createNewWindow
 };

@@ -4,7 +4,7 @@ import json
 import traceback
 import platform
 from scripts.loginFlow.login import startLogin, submitOtp
-from .browser import closeBrowser, get_browser
+from .browser import closeBrowser, get_browser, create_new_browser_window
 from scripts.submission.validateReportExistence import validate_report
 from scripts.delete.reportDelete import delete_report_flow
 from scripts.submission.grabMacroIds import get_all_macro_ids_parallel
@@ -267,6 +267,19 @@ async def command_handler():
                 result["commandId"] = cmd.get("commandId")
                 print(json.dumps(result), flush=True)
 
+            elif action == "new_window":
+                # Create a new browser window
+                new_page = await create_new_browser_window()
+                result = {
+                    "status": "SUCCESS",
+                    "message": "New browser window created successfully",
+                    "commandId": cmd.get("commandId"),
+                    "data": {
+                        "url": await new_page.evaluate("window.location.href")
+                    }
+                }
+                print(json.dumps(result), flush=True)
+
             elif action == "create_assets":
                 browser = await get_browser()
                 if not browser:
@@ -421,9 +434,19 @@ async def command_handler():
 
                 result["commandId"] = cmd.get("commandId")
                 print(json.dumps(result), flush=True)
+                
+            elif action == "handle_cancelled_report":
+                from scripts.delete.cancelledReportHandler import handle_cancelled_report
+                report_id = cmd.get("reportId")
+
+                result = await handle_cancelled_report(report_id)
+                result["commandId"] = cmd.get("commandId")
+
+                print(json.dumps(result), flush=True)
 
             elif action == "check_browser":
                 from .browser import is_browser_open
+                
                 result = await is_browser_open()
                 result["commandId"] = cmd.get("commandId")
                 

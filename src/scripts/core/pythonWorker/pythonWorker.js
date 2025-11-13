@@ -304,6 +304,12 @@ class PythonWorker {
         });
     }
 
+    async createNewWindow() {
+        return this.sendCommand({
+            action: 'new_window'
+        });
+    }
+
     async login(email, password, method = null) {
         return this.sendCommand({
             action: 'login',
@@ -325,6 +331,13 @@ class PythonWorker {
         return this.sendCommand({
             action: 'validate_excel_data',
             reportId,
+        });
+    }
+
+    async handleCancelledReport(reportId) {
+        return this.sendCommand({
+            action: 'handle_cancelled_report',
+            reportId
         });
     }
 

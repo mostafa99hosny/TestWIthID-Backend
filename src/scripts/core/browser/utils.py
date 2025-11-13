@@ -1,4 +1,5 @@
 import asyncio, json, time, sys
+from datetime import datetime
 
 async def wait_for_table_rows(page, timeout=100):
     """Wait for table to have valid data rows"""
@@ -62,6 +63,11 @@ async def wait_for_element(page, selector, timeout=30):
     
     return None
     
+def log(msg: str, level: str = "INFO"):
+    stamp = datetime.now().strftime("%H:%M:%S")
+    icons = {"INFO":"ℹ️", "OK":"✅", "ERR":"❌", "STEP":"👉"}
+    print(f"{icons.get(level,'ℹ️')} [{stamp}] {msg}", flush=True)
+
 
 async def wait_for_table_rows(page, timeout=100):
     """Wait for table to have valid data rows"""
