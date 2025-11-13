@@ -192,19 +192,29 @@ const checkBrowserStatus = async (req, res) => {
 
         const result = await pythonWorker.checkBrowserStatus();
 
+        // Handle different response formats
+        let browserOpen = false;
+        let message = 'Browser is not open';
+        let error = null;
+
         if (result.status === 'SUCCESS') {
-            return res.json({
-                success: true,
-                browserOpen: result.browserOpen,
-                message: result.browserOpen
-                    ? 'Browser is open and active'
-                    : 'Browser is not open'
-            });
+            browserOpen = result.browserOpen === true;
+            message = result.message || (browserOpen ? 'Browser is open and user is logged in' : 'Browser is not open');
+        } else if (result.status === 'FAILED') {
+            error = result.error || 'Browser check failed';
+            browserOpen = false;
+            message = error;
+        } else {
+            // Handle legacy format or direct boolean
+            browserOpen = result.browserOpen === true || result === true;
+            message = browserOpen ? 'Browser is open' : 'Browser is not open';
         }
 
-        return res.status(500).json({
-            success: false,
-            error: 'Failed to check browser status',
+        return res.json({
+            success: true,
+            browserOpen,
+            message,
+            ...(error && { error }),
             data: result
         });
 
@@ -214,7 +224,8 @@ const checkBrowserStatus = async (req, res) => {
         res.status(500).json({
             success: false,
             error: error.message,
-            browserOpen: false
+            browserOpen: false,
+            message: 'Failed to check browser status'
         });
     }
 };

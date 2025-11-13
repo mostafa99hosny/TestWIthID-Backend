@@ -2,7 +2,7 @@ import asyncio
 import sys
 import traceback
 import json
-from scripts.core.browser.browser import get_browser
+from scripts.core.browser.browser import get_browser, is_browser_open
 from scripts.core.browser.utils import wait_for_table_rows
 
 
@@ -12,6 +12,23 @@ async def validate_report(cmd):
         return {
             "status": "FAILED",
             "error": "Missing reportId in command"
+        }
+    
+    browser_status = await is_browser_open()
+    print(f"[VALIDATION] Browser status: {browser_status}", file=sys.stderr)
+    
+    if not browser_status.get("browserOpen", False):
+        return {
+            "status": "FAILED",
+            "error": "Browser is not open",
+            "reportId": report_id  # Maintain original structure
+        }
+    
+    if browser_status.get("status") != "SUCCESS":
+        return {
+            "status": "FAILED", 
+            "error": "User not logged in", 
+            "reportId": report_id  # Maintain original structure
         }
 
     url = f"https://qima.taqeem.sa/report/{report_id}"

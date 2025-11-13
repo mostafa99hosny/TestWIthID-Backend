@@ -1,4 +1,5 @@
 from nodriver import Browser
+import json
 
 _browser = None
 
@@ -37,20 +38,35 @@ async def closeBrowser():
             _browser = None
 
 async def is_browser_open():
-    """Check if browser instance exists and is active"""
+    """Check if browser instance exists, is active, and user is logged in"""
     global _browser
     if _browser is None:
-        return False
+        return {"status": "FAILED", "error": "No browser instance", "browserOpen": False}
     
     try:
-        # Try to access the browser's main tab to verify it's actually running
-        # If the browser was closed externally, this will fail
-        _ = _browser.main_tab
-        return True
-    except Exception:
+        page = _browser.main_tab
+        url = await page.evaluate("window.location.href")  # Fixed: evaluate not evaulate
+        current_url = url.lower()
+        
+        # URLs that definitively indicate NOT logged in
+        non_logged_in_urls = [
+            "sso.taqeem.gov.sa/realms/rel_taqeem/login-actions/authenticate",
+            "sso.taqeem.gov.sa/realms/rel_taqeem/protocol/openid-connect/auth",
+            "/login-actions/authenticate",
+            "/protocol/openid-connect/auth"
+        ]
+        
+        # If we're on any authentication URL, we're definitely not logged in
+        if any(auth_url in current_url for auth_url in non_logged_in_urls):
+            return {"status": "FAILED", "error": "User not logged in", "browserOpen": True}
+            
+        # If browser is responsive and we're NOT on auth URLs, assume logged in
+        return {"status": "SUCCESS", "message": "User is logged in", "browserOpen": True}
+        
+    except Exception as e:
         # Browser instance exists but is not actually running
         _browser = None
-        return False
+        return {"status": "FAILED", "error": str(e), "browserOpen": False}
 
 async def wait_for_element(page, selector, timeout=30):
     """Wait for element with timeout"""

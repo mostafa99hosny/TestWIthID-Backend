@@ -424,12 +424,9 @@ async def command_handler():
 
             elif action == "check_browser":
                 from .browser import is_browser_open
-                is_open = await is_browser_open()
-                result = {
-                    "status": "SUCCESS",
-                    "browserOpen": is_open,
-                    "commandId": cmd.get("commandId")
-                }
+                result = await is_browser_open()
+                result["commandId"] = cmd.get("commandId")
+                
                 print(json.dumps(result), flush=True)
 
             elif action == "close":
