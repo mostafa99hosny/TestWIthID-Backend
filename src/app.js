@@ -10,6 +10,7 @@ const authRoutes = require('./presentation/routes/taqeemAuth.routes');
 const taqeemSubmissionRoutes = require('./presentation/routes/taqeemSubmission.routes');
 const taqeemDeleteRoutes = require('./presentation/routes/taqeemDelete.routes');
 const testReportRoutes = require('./presentation/routes/testReport.routes');
+const taqeemResourcesRoutes = require('./presentation/routes/taqeemResources.routes');
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use('/api/taqeemAuth', authRoutes);
 app.use('/api/taqeemSubmission', taqeemSubmissionRoutes);
 app.use('/api/taqeemDelete', taqeemDeleteRoutes);
 app.use('/api/reports', testReportRoutes);
+app.use('/api/taqeemResources', taqeemResourcesRoutes);
 
 
 // Health check endpoint

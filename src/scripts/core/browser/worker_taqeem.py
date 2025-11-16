@@ -8,6 +8,7 @@ from .browser import closeBrowser, get_browser, create_new_browser_window
 from scripts.submission.validateReportExistence import validate_report
 from scripts.delete.reportDelete import delete_report_flow
 from scripts.submission.grabMacroIds import get_all_macro_ids_parallel
+from .browser import get_resource_tracker
 
 if platform.system().lower() == "windows":
     sys.stdout.reconfigure(encoding="utf-8")
@@ -176,6 +177,55 @@ async def handle_control_command(cmd):
         }
         print(json.dumps(result), flush=True)
 
+async def handle_get_resource_metrics(cmd):
+    """Handle request for resource metrics"""
+    try:
+        tracker = await get_resource_tracker()
+        tab_id = cmd.get("tabId")
+        
+        if tab_id:
+            # Get metrics for specific tab
+            metrics = await tracker.get_tab_metrics(tab_id)
+            if metrics:
+                result = {
+                    "status": "SUCCESS",
+                    "data": metrics,
+                    "commandId": cmd.get("commandId")
+                }
+            else:
+                result = {
+                    "status": "FAILED",
+                    "error": f"Tab {tab_id} not found",
+                    "commandId": cmd.get("commandId")
+                }
+        else:
+            # Get metrics for all tabs
+            all_metrics = await tracker.get_all_metrics()
+            browser_metrics = await tracker.get_browser_process_metrics()
+            
+            result = {
+                "status": "SUCCESS",
+                "data": {
+                    "tabs": all_metrics,
+                    "browser": browser_metrics,
+                    "total_tabs": len(all_metrics)
+                },
+                "commandId": cmd.get("commandId")
+            }
+        
+        print(json.dumps(result), flush=True)
+        
+    except Exception as e:
+        tb = traceback.format_exc()
+        result = {
+            "status": "FAILED",
+            "error": str(e),
+            "traceback": tb,
+            "commandId": cmd.get("commandId")
+        }
+        print(json.dumps(result), flush=True)
+
+
 async def run_edit_macros_task(cmd, browser):
     """Run edit_macros as a background task"""
     report_id = cmd.get("reportId")
@@ -236,6 +286,7 @@ async def command_handler():
             print(f"[PY DEBUG] RAW COMMAND RECEIVED: {cmd}", file=sys.stderr)
             print(f"[PY] Received action: {action}", file=sys.stderr)
             
+            
             if action == "login":
                 browser = await get_browser(force_new=True)
                 page = await browser.get(
@@ -261,6 +312,105 @@ async def command_handler():
                 result = await submitOtp(page, cmd.get("otp", ""), cmd.get("recordId"))
                 result["commandId"] = cmd.get("commandId")
                 print(json.dumps(result), flush=True)
+
+            elif action == "get_resource_metrics":
+                from .browser import get_resource_tracker
+                
+                tracker = await get_resource_tracker()
+                tab_id = cmd.get("tabId")
+                
+                try:
+                    if tab_id:
+                        # Get metrics for specific tab
+                        metrics = await tracker.get_tab_metrics(tab_id)
+                        if metrics:
+                            result = {
+                                "status": "SUCCESS",
+                                "data": metrics,
+                                "commandId": cmd.get("commandId")
+                            }
+                        else:
+                            result = {
+                                "status": "FAILED",
+                                "error": f"Tab {tab_id} not found",
+                                "commandId": cmd.get("commandId")
+                            }
+                    else:
+                        # Get metrics for all tabs
+                        all_metrics = await tracker.get_all_metrics()
+                        browser_metrics = await tracker.get_browser_process_metrics()
+                        
+                        result = {
+                            "status": "SUCCESS",
+                            "data": {
+                                "tabs": all_metrics,
+                                "browser": browser_metrics,
+                                "total_tabs": len(all_metrics)
+                            },
+                            "commandId": cmd.get("commandId")
+                        }
+                    
+                    print(json.dumps(result), flush=True)
+                    
+                except Exception as e:
+                    tb = traceback.format_exc()
+                    result = {
+                        "status": "FAILED",
+                        "error": str(e),
+                        "traceback": tb,
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+
+            elif action == "start_resource_monitoring":
+                from .browser import get_resource_tracker
+                
+                tracker = await get_resource_tracker()
+                interval = cmd.get("interval", 5)
+                
+                try:
+                    await tracker.start_monitoring(interval)
+                    result = {
+                        "status": "SUCCESS",
+                        "message": f"Resource monitoring started with {interval}s interval",
+                        "interval": interval,
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+                    
+                except Exception as e:
+                    tb = traceback.format_exc()
+                    result = {
+                        "status": "FAILED",
+                        "error": str(e),
+                        "traceback": tb,
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+
+            elif action == "stop_resource_monitoring":
+                from .browser import get_resource_tracker
+                
+                tracker = await get_resource_tracker()
+                
+                try:
+                    await tracker.stop_monitoring()
+                    result = {
+                        "status": "SUCCESS",
+                        "message": "Resource monitoring stopped",
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+                    
+                except Exception as e:
+                    tb = traceback.format_exc()
+                    result = {
+                        "status": "FAILED",
+                        "error": str(e),
+                        "traceback": tb,
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
 
             elif action == "validate_excel_data":
                 result = await validate_report(cmd)
