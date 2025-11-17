@@ -167,9 +167,11 @@ class BrowserResourceTracker:
               try {
                 const mem = performance.memory || {};
                 return {
-                  memory_used_mb: mem.usedJSHeapSize ? mem.usedJSHeapSize / (1024*1024) : None,
-                  url: location.href,
-                  title: document.title
+                    memory_used_mb: mem.usedJSHeapSize ? mem.usedJSHeapSize / (1024*1024) : None,
+                    allocated_mb: mem.totalJSHeapSize ? mem.totalJSHeapSize / (1024*1024) : None,
+                    memory_limit_mb: mem.jsHeapSizeLimit ? mem.jsHeapSizeLimit / (1024*1024) : None,
+                    url: location.href,
+                    title: document.title
                 };
               } catch (e) {
                 return { error: String(e) };
@@ -329,10 +331,8 @@ class BrowserResourceTracker:
                 "status": "success",
                 "metrics": {
                     "memory_mb": round(metrics_dict.get("memory_used_mb", 0), 2),
-                    "memory_limit_mb": round(metrics_dict.get("memory_limit_mb", 0), 2),
-                    "dom_nodes": metrics_dict.get("dom_nodes", 0),
-                    "load_time_ms": round(metrics_dict.get("load_time_ms", 0), 2),
-                    "dom_ready_ms": round(metrics_dict.get("dom_ready_ms", 0), 2),
+                    "allocated_mb": round(metrics_dict.get("allocated_mb", 0), 2),
+                    "limit_mb": round(metrics_dict.get("memory_limit_mb", 0), 2),
                     "last_updated": datetime.now().isoformat()
                 }
             }
@@ -456,8 +456,15 @@ class BrowserResourceTracker:
                     # Get all child processes (tabs, GPU process, etc.)
                     children = browser_process.children(recursive=True)
                     
-                    # Get metrics
-                    total_cpu = browser_process.cpu_percent(interval=0.1)
+                    # FIX: Get CPU percentage with proper interval
+                    # First call to cpu_percent() returns 0.0, so we need to call it twice
+                    # with a meaningful interval
+                    total_cpu = browser_process.cpu_percent(interval=0.5)  # Increased interval
+                    
+                    # If it's still 0, try one more time
+                    if total_cpu == 0.0:
+                        total_cpu = browser_process.cpu_percent(interval=0.5)
+                    
                     total_memory = browser_process.memory_info().rss / (1024 * 1024)  # MB
                     
                     # Aggregate child process metrics
@@ -465,7 +472,11 @@ class BrowserResourceTracker:
                     child_memory = 0
                     for child in children:
                         try:
-                            child_cpu += child.cpu_percent(interval=0.1)
+                            # FIX: Same issue with child processes
+                            child_cpu_percent = child.cpu_percent(interval=0.1)
+                            if child_cpu_percent == 0.0:
+                                child_cpu_percent = child.cpu_percent(interval=0.1)
+                            child_cpu += child_cpu_percent
                             child_memory += child.memory_info().rss / (1024 * 1024)
                         except (psutil.NoSuchProcess, psutil.AccessDenied):
                             continue
