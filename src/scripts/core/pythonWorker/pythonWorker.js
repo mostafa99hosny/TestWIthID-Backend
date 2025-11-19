@@ -310,13 +310,6 @@ class PythonWorker {
         });
     }
 
-    // Add to PythonWorker class in pythonWorker.js
-
-    /**
-     * Get resource metrics for a specific tab
-     * @param {string} tabId - The tab ID to get metrics for
-     * @returns {Promise<Object>} Resource metrics for the tab
-     */
     async getTabResourceMetrics(tabId) {
         console.log(`[PY] Getting resource metrics for tab: ${tabId}`);
         return this.sendCommand({
@@ -325,11 +318,7 @@ class PythonWorker {
         });
     }
 
-    /**
-     * Get resource metrics for all browser tabs
-     * @param {boolean} autoDiscover - Automatically discover and track untracked tabs
-     * @returns {Promise<Object>} Resource metrics for all tabs and browser process
-     */
+
     async getAllResourceMetrics(autoDiscover = false) {
         console.log('[PY] Getting resource metrics for all tabs');
         return this.sendCommand({
@@ -338,10 +327,7 @@ class PythonWorker {
         });
     }
 
-    /**
-     * Discover all browser tabs and register them for tracking
-     * @returns {Promise<Object>} Discovery results
-     */
+
     async discoverAllTabs() {
         console.log('[PY] Discovering all browser tabs');
         return this.sendCommand({
@@ -349,10 +335,7 @@ class PythonWorker {
         });
     }
 
-    /**
-     * Sync tracked tabs with actual browser tabs
-     * @returns {Promise<Object>} Sync results
-     */
+
     async syncTabs() {
         console.log('[PY] Syncing tracked tabs with browser');
         return this.sendCommand({
@@ -360,11 +343,7 @@ class PythonWorker {
         });
     }
 
-    /**
-     * Start periodic resource monitoring
-     * @param {number} interval - Monitoring interval in seconds (default: 5)
-     * @returns {Promise<Object>}
-     */
+
     async startResourceMonitoring(interval = 5) {
         console.log(`[PY] Starting resource monitoring (interval: ${interval}s)`);
         return this.sendCommand({
@@ -373,18 +352,12 @@ class PythonWorker {
         });
     }
 
-    /**
-     * Stop periodic resource monitoring
-     * @returns {Promise<Object>}
-     */
     async stopResourceMonitoring() {
         console.log('[PY] Stopping resource monitoring');
         return this.sendCommand({
             action: 'stop_resource_monitoring'
         });
     }
-
-
 
     async login(email, password, method = null) {
         return this.sendCommand({
@@ -501,6 +474,15 @@ class PythonWorker {
         return this.sendCommand({
             action: 'resume',
             batchId
+        });
+    }
+
+    async deleteIncompleteAssets(reportId, batchId = null) {
+        console.log(`[PY] Deleting incomplete assets for report ${reportId}`);
+        return this.sendCommand({
+            action: 'delete_incomplete_assets',
+            reportId,
+            batchId: batchId || reportId
         });
     }
 

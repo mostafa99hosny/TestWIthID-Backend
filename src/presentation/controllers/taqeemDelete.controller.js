@@ -60,7 +60,56 @@ const changeTaqeemReportStatus = async (req, res) => {
     }
 }
 
+const deleteAssetsOnly = async (req, res) => {
+    const { reportId, batchId } = req.body;
+
+    if (!reportId) {
+        return res.status(400).json({
+            success: false,
+            error: 'Report ID is required'
+        });
+    }
+
+    try {
+
+        const result = await pythonWorker.deleteIncompleteAssets(reportId, batchId);
+
+        if (result.status === 'SUCCESS') {
+            return res.json({
+                success: true,
+                message: result.message,
+                data: {
+                    reportId: result.reportId,
+                    totalDeleted: result.data.total_deleted,
+                    mainPagesProcessed: result.data.main_pages_processed
+                }
+            });
+        } else if (result.status === 'STOPPED') {
+            return res.json({
+                success: false,
+                stopped: true,
+                message: result.message,
+                reportId: result.reportId
+            });
+        } else {
+            return res.status(500).json({
+                success: false,
+                error: result.error || 'Failed to delete incomplete assets',
+                reportId: result.reportId
+            });
+        }
+
+    } catch (error) {
+        console.error('[API] Error deleting incomplete assets:', error);
+        return res.status(500).json({
+            success: false,
+            error: error.message || 'Internal server error'
+        });
+    }
+};
+
 module.exports = {
     deleteTaqeemReport,
-    changeTaqeemReportStatus
+    changeTaqeemReportStatus,
+    deleteAssetsOnly
 };

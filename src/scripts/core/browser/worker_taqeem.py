@@ -8,6 +8,7 @@ from .browser import closeBrowser, get_browser, create_new_browser_window
 from scripts.submission.validateReportExistence import validate_report
 from scripts.delete.reportDelete import delete_report_flow
 from scripts.submission.grabMacroIds import get_all_macro_ids_parallel
+from scripts.delete.deleteIncompleteAssets import delete_incomplete_assets_flow
 from .browser import get_resource_tracker
 
 if platform.system().lower() == "windows":
@@ -584,7 +585,55 @@ async def command_handler():
 
                 result["commandId"] = cmd.get("commandId")
                 print(json.dumps(result), flush=True)
+
+            elif action == "delete_incomplete_assets":
+                report_id = cmd.get("reportId")
+                batch_id = cmd.get("batchId")
                 
+                if not report_id:
+                    result = {
+                        "status": "FAILED",
+                        "error": "Missing required parameter: reportId",
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+                    continue
+                
+                # Create control state for pause/resume/stop functionality
+                task_id = f"delete_incomplete_{report_id}_{batch_id or ''}"
+                control_state = create_control_state(task_id, batch_id or report_id)
+                
+                try:
+                    result = await delete_incomplete_assets_flow(
+                        report_id=report_id,
+                        control_state=control_state
+                    )
+                    result["commandId"] = cmd.get("commandId")
+                    print(json.dumps(result), flush=True)
+                    
+                except TaskStoppedException as e:
+                    result = {
+                        "status": "STOPPED",
+                        "message": str(e),
+                        "reportId": report_id,
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+                    
+                except Exception as e:
+                    tb = traceback.format_exc()
+                    result = {
+                        "status": "FAILED",
+                        "error": str(e),
+                        "traceback": tb,
+                        "reportId": report_id,
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+                    
+                finally:
+                    cleanup_control_state(task_id)
+
             elif action == "handle_cancelled_report":
                 from scripts.delete.cancelledReportHandler import handle_cancelled_report
                 report_id = cmd.get("reportId")
