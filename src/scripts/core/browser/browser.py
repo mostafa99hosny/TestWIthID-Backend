@@ -585,20 +585,54 @@ async def new_window_with_tracking(url: str = None, description: str = ""):
     return page
 
 
-async def create_new_browser_window(description: str = ""):
-    """Create new browser window and auto-register for tracking"""
+async def create_new_browser_window(url: str | None = None, description: str = ""):
+    """
+    Create a new browser window and auto-register it for resource tracking.
+
+    If `url` is provided it will open that URL in a new window/tab; otherwise
+    it will open the default landing page (`https://qima.taqeem.sa/`).
+
+    Backwards-compatible: callers that previously passed a single string
+    (which may have been intended as a description) will still work if they
+    explicitly pass description by name. Typical usage in this project is
+    to call `create_new_browser_window(full_url)`.
+    """
     browser = await get_browser()
-    new_page = await browser.get("https://qima.taqeem.sa/", new_window=True)
-    
-    url = await new_page.evaluate('window.location.href')
-    log(f"Created new browser window with URL: {url}", "INFO")
-    
+
+    # Try to open the requested URL in a new window/tab
+    if url:
+        try:
+            new_page = await browser.get(url, new_window=True)
+        except Exception as e:
+            log(f"create_new_browser_window: browser.get failed for {url}: {e}", "WARN")
+            try:
+                # Fallback to creating a blank page and setting location
+                new_page = await browser.new_page()
+                await new_page.evaluate("url => { window.location.href = url; }", url)
+            except Exception as e2:
+                log(f"create_new_browser_window: fallback navigation failed: {e2}", "ERR")
+                # As a last resort open default landing page
+                new_page = await browser.get("https://qima.taqeem.sa/", new_window=True)
+    else:
+        # No URL provided: open default landing page
+        new_page = await browser.get("https://qima.taqeem.sa/", new_window=True)
+
+    # Determine the actual URL for logging/description
+    try:
+        actual_url = await new_page.evaluate('window.location.href')
+    except Exception:
+        actual_url = "about:blank"
+
+    log(f"Created new browser window with URL: {actual_url}", "INFO")
+
     # Auto-register for resource tracking
     tracker = await get_resource_tracker()
-    tracker.register_tab(new_page, description or f"Browser window: {url}")
+    tracker.register_tab(new_page, description or f"Browser window: {actual_url}")
     log(f"Auto-registered window for resource tracking", "INFO")
-    
+
     return new_page
+
+
 
 
 def _is_valid_http_url(url: str) -> bool:
