@@ -1,7 +1,7 @@
 # report_actions.py
 import asyncio, re, json
 from .utils import log
-from scripts.core.browser.browser import new_window  # reliable new-tab open in nodriver
+from scripts.core.browser.browser import new_window, create_new_browser_window  # reliable new-tab open in nodriver
 from .assetEdit import edit_macro_and_save
 
 OFFICE_ID = 487
@@ -919,7 +919,7 @@ async def delete_report_flow(report_id: str, template_path: str = "./asset_templ
             log(f"Report {report_id}: cleanup round #{round_idx}", "STEP")
 
             # 1) Open the report page
-            page = await new_window(f"https://qima.taqeem.sa/report/{report_id}?office={OFFICE_ID}")
+            page = await create_new_browser_window(f"https://qima.taqeem.sa/report/{report_id}?office={OFFICE_ID}")
             await asyncio.sleep(1.0)
 
             # 2) Try Delete Report button first
@@ -963,7 +963,7 @@ async def delete_report_flow(report_id: str, template_path: str = "./asset_templ
             )
 
             # Re-open to check asset presence cleanly
-            page2 = await new_window(f"https://qima.taqeem.sa/report/{report_id}?office={OFFICE_ID}")
+            page2 = await page.get(f"https://qima.taqeem.sa/report/{report_id}?office={OFFICE_ID}")
             await asyncio.sleep(1.0)
             
             if await _has_any_assets(page2):
