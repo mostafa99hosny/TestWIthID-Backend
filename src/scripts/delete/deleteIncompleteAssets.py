@@ -502,7 +502,7 @@ async def _has_any_assets(page) -> bool:
 async def delete_incomplete_assets_flow(report_id: str, control_state=None, max_rounds: int = 10) -> dict:
 
     try:
-        from scripts.core.browser.browser import new_window
+        from scripts.core.browser.browser import create_new_browser_window
         
         for round_idx in range(1, max_rounds + 1):
             log(f"Report {report_id}: cleanup round #{round_idx}", "STEP")
@@ -510,7 +510,7 @@ async def delete_incomplete_assets_flow(report_id: str, control_state=None, max_
             # Open report page
             url = f"https://qima.taqeem.sa/report/{report_id}?office=487"
             log(f"Opening report: {url}", "STEP")
-            page = await new_window(url)
+            page = await create_new_browser_window(url)
             await asyncio.sleep(2.0)
 
             # Delete incomplete assets across all pages
