@@ -13,3 +13,4 @@ openpyxl>=3.1.2
 motor
 typer
 psutil
+beautifulsoup4
