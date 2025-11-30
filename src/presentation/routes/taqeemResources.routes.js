@@ -7,7 +7,9 @@ const {
     syncTabs,
     singleTabResourceMetrics,
     startResourceMonitoring,
-    stopResourceMonitoring
+    stopResourceMonitoring,
+    getCompanies,
+    navigateToCompany
 } = require('../controllers/taqeemResources.controller');
 
 
@@ -18,6 +20,8 @@ router.get('/tabs/:tabId/metrics', singleTabResourceMetrics);
 router.post('/tabs/sync', syncTabs);
 router.post('/resources/monitoring/start', startResourceMonitoring);
 router.post('/resources/monitoring/stop', stopResourceMonitoring);
+router.get('/resources/companies', getCompanies);
+router.post('/navigate/company', navigateToCompany);
 
 
 module.exports = router;

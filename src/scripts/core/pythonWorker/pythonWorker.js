@@ -359,6 +359,23 @@ class PythonWorker {
         });
     }
 
+    async getCompanies(autoDiscover = false) {
+        console.log('[PY] Getting companies from taqeem system');
+        return this.sendCommand({
+            action: 'getCompanies',
+            autoDiscover
+        });
+    }
+
+    async navigateToCompany(url, radius = 0) {
+        console.log(`[PY] Navigating to company: ${url} with radius: ${radius}`);
+        return this.sendCommand({
+            action: 'navigateToCompany',
+            url: url,
+            radius: radius
+        });
+    }
+
     async login(email, password, method = null) {
         return this.sendCommand({
             action: 'login',

@@ -3,6 +3,7 @@ const WorkerActions = {
     LOGIN: 'login',
     OTP: 'otp',
     PROCESS_BATCH: 'processTaqeemBatch',
+    GET_COMPANIES: 'getCompanies',
     PAUSE: 'pause',
     RESUME: 'resume',
     STOP: 'stop',
