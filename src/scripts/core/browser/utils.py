@@ -66,7 +66,7 @@ async def wait_for_element(page, selector, timeout=30):
 def log(msg: str, level: str = "INFO"):
     stamp = datetime.now().strftime("%H:%M:%S")
     icons = {"INFO":"ℹ️", "OK":"✅", "ERR":"❌", "STEP":"👉"}
-    print(f"{icons.get(level,'ℹ️')} [{stamp}] {msg}", flush=True)
+    print(f"{icons.get(level,'ℹ️')} [{stamp}] {msg}", file=sys.stderr, flush=True)
 
 
 async def wait_for_table_rows(page, timeout=100):

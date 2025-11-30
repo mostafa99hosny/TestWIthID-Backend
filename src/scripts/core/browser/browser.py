@@ -123,9 +123,9 @@ class BrowserResourceTracker:
         # First, try to get basic page info to check if it's accessible
         try:
             type_page = type(page)
-            print(json.dumps({"type": str(type_page)}))
+            log(f"Page type: {type_page}", "DEBUG")
             url = await page.evaluate("window.location.href")
-            title = await page.evaluate("document.title") 
+            title = await page.evaluate("document.title")
         except Exception as e:
             # Can't even get URL - page is completely inaccessible
             return {

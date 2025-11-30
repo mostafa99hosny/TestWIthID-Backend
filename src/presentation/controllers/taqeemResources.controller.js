@@ -159,6 +159,67 @@ const stopResourceMonitoring = async (req, res) => {
     }
 };
 
+const getCompanies = async (req, res) => {
+    try {
+        const result = await pythonWorker.getCompanies();
+
+        if (result.status === 'SUCCESS') {
+            res.json({
+                success: true,
+                data: result.data,
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                error: result.error || 'Failed to get companies'
+            });
+        }
+    } catch (error) {
+        console.error('[API] Error getting companies:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
+const navigateToCompany = async (req, res) => {
+    try {
+        const { url, radius = 0 } = req.body;
+
+        if (!url) {
+            return res.status(400).json({
+                success: false,
+                error: 'URL is required'
+            });
+        }
+
+        const result = await pythonWorker.navigateToCompany(url, radius);
+
+        if (result.status === 'SUCCESS') {
+            res.json({
+                success: true,
+                message: result.message,
+                url: result.url,
+                radius: result.radius,
+                timestamp: new Date().toISOString()
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                error: result.error || 'Failed to navigate to company'
+            });
+        }
+    } catch (error) {
+        console.error('[API] Error navigating to company:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+};
+
 
 module.exports = {
     getAllResourceMetrics,
@@ -166,5 +227,7 @@ module.exports = {
     syncTabs,
     singleTabResourceMetrics,
     startResourceMonitoring,
-    stopResourceMonitoring
+    stopResourceMonitoring,
+    getCompanies,
+    navigateToCompany
 };

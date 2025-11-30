@@ -11,6 +11,66 @@ from scripts.submission.grabMacroIds import get_all_macro_ids_parallel
 from scripts.delete.deleteIncompleteAssets import delete_incomplete_assets_flow
 from .browser import get_resource_tracker
 
+async def get_companies():
+    """Get companies from taqeem system by parsing HTML content"""
+    try:
+        from .browser import navigate
+        from bs4 import BeautifulSoup
+
+        # Navigate to the taqeem homepage
+        page = await navigate("https://qima.taqeem.sa/")
+        await asyncio.sleep(3)  # Wait for page to load
+
+        # Get the HTML content of the page
+        html_content = await page.get_content()
+        soup = BeautifulSoup(html_content, 'html.parser')
+
+        companies = []
+
+        # Find the machinery/equipment section (sidebarItem_5)
+        machinery_section = soup.find('ul', {'id': 'sidebarItem_5'})
+        if machinery_section:
+            # Find all links in this section
+            links = machinery_section.find_all('a', href=True)
+
+            # Find the markers
+            reports_link_found = False
+            join_partner_found = False
+
+            for link in links:
+                href = link.get('href')
+                text = link.get_text(strip=True)
+
+                if not href or not text:
+                    continue
+
+                # Check for the "تقاريري" (My Reports) marker
+                if "membership/reports/sector/4" in href:
+                    reports_link_found = True
+                    print("[INFO] Found reports link marker", file=sys.stderr)
+                    continue
+
+                # Check for the "انضمام كشريك لمنشأة" (Join as Partner) marker
+                if "organization/joinPartner/sector/4" in href:
+                    join_partner_found = True
+                    print("[INFO] Found join partner link marker", file=sys.stderr)
+                    break  # Stop processing after this marker
+
+                # If we're between the markers, check if it's a company link
+                if reports_link_found and not join_partner_found:
+                    if "organization/show/" in href and text:
+                        companies.append({
+                            "name": text,
+                            "url": href
+                        })
+                        print(f"[INFO] Found company: {text}", file=sys.stderr)
+
+        print(f"[INFO] Total companies found: {len(companies)}", file=sys.stderr)
+        return {"status": "SUCCESS", "data": companies}
+    except Exception as e:
+        print(f"[ERROR] Error getting companies: {e}", file=sys.stderr)
+        return {"status": "FAILED", "error": str(e)}
+
 if platform.system().lower() == "windows":
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
@@ -645,11 +705,61 @@ async def command_handler():
 
             elif action == "check_browser":
                 from .browser import is_browser_open
-                
+
                 result = await is_browser_open()
                 result["commandId"] = cmd.get("commandId")
-                
+
                 print(json.dumps(result), flush=True)
+
+            elif action == "getCompanies":
+                result = await get_companies()
+                result["commandId"] = cmd.get("commandId")
+                print(json.dumps(result), flush=True)
+
+            elif action == "navigateToCompany":
+                url = cmd.get("url")
+                if not url:
+                    result = {
+                        "status": "FAILED",
+                        "error": "URL is required",
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+                    continue
+
+                try:
+                    # Navigate in the active browser window instead of creating a new one
+                    browser = await get_browser()
+                    if not browser or not browser.main_tab:
+                        result = {
+                            "status": "FAILED",
+                            "error": "No active browser session. Please login first.",
+                            "commandId": cmd.get("commandId")
+                        }
+                        print(json.dumps(result), flush=True)
+                        continue
+
+                    # Navigate the main tab to the company URL
+                    await browser.main_tab.get(url)
+                    await asyncio.sleep(2)  # Wait for page to load
+
+                    result = {
+                        "status": "SUCCESS",
+                        "message": f"Successfully navigated to company in active window: {url}",
+                        "url": url,
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
+
+                except Exception as e:
+                    tb = traceback.format_exc()
+                    result = {
+                        "status": "FAILED",
+                        "error": f"Failed to navigate to company: {str(e)}",
+                        "traceback": tb,
+                        "commandId": cmd.get("commandId")
+                    }
+                    print(json.dumps(result), flush=True)
 
             elif action == "close":
                 await closeBrowser()
